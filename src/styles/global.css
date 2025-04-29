@@ -1,0 +1,17 @@
+/* Tailwind – Grundlayer */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Globale Basis ---------- */
+html,
+body {
+  /* Vollflächig weißer Hintergrund und neutrale Schriftfarbe */
+  @apply bg-white text-gray-900 antialiased;
+}
+
+/* (Optional) zentrierender Container – wenn du ihn projektweit nutzen willst
+.container-center {
+  @apply mx-auto w-full max-w-7xl px-4;
+}
+*/
