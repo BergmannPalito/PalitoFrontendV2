@@ -1,99 +1,139 @@
 // src/features/patents/pages/HomePagePatentView.jsx
-/*
-import React from 'react'; // useState, useEffect entfernt
-import { useNavigate } from 'react-router-dom';
-// getCurrentUser wird hier nicht mehr benötigt
-// import { getCurrentUser } from '../../../config';
-// Importiere useAuth vom neuen Speicherort
-import { useAuth } from '../../authentication/hooks/useAuth';
+import { useState, useCallback } from 'react';
+import PropTypes from 'prop-types';
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  rectIntersection,
+  DragOverlay,
+} from '@dnd-kit/core';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { MdDragIndicator } from 'react-icons/md';
+import clsx from 'clsx';
 
-// decodeJwtPayload wird nicht mehr hier benötigt, da die Payloads aus dem Context kommen
-/*
-function decodeJwtPayload(token) {
- // ...
+import { PatentWorkspaceProvider, usePatentWorkspace } from '../context/PatentWorkspaceContext';
+import { CommentsProvider } from '../context/CommentsContext';
+import Sidebar from '../components/Sidebar/Sidebar';
+import TabWorkspace from '../components/TabWorkspace/TabWorkspace'; // Now uses TabGroupWrapper internally
+
+// --- TabOverlayItem Component (unchanged) ---
+function TabOverlayItem({ name }) {
+    // ... (component code)
+    return (
+        <div
+           className={clsx(
+                'relative flex shrink-0 items-center gap-1 px-3 py-1.5 whitespace-nowrap text-sm',
+                'bg-white rounded shadow-lg border border-gray-300',
+                'font-medium text-gray-900 cursor-grabbing'
+            )}
+        >
+            <span className="mr-1 text-gray-400 cursor-grabbing">
+               <MdDragIndicator size={14} />
+            </span>
+            <span className="max-w-[120px] truncate">{name}</span>
+        </div>
+    );
 }
-*/
-/*
-function HomePagePatentView() {
-  const navigate = useNavigate();
-  // --- Geändert: Hole Payloads und Logout direkt aus dem Context ---
-  const { logout, idTokenPayload, accessTokenPayload, isLoading: isAuthLoading } = useAuth();
+TabOverlayItem.propTypes = { name: PropTypes.string.isRequired };
+// --- End TabOverlayItem ---
 
-  // Logout-Handler, der die Context-Funktion nutzt
-  const handleLogout = () => {
-    console.log('HomePage: handleLogout called');
-    logout(); // Rufe die Logout-Funktion aus dem Context auf
-    navigate('/login'); // Navigiere zum Login
-  };
 
-  // --- Rendering-Logik ---
+// --- Inner component to access context ---
+function PatentViewLayout() {
+  const { openTabs, reorderTabs, addPatentToFolder } = usePatentWorkspace();
+  const [draggingTabId, setDraggingTabId] = useState(null); // State remains here
 
-  // Warte, bis der AuthProvider seine initiale Prüfung abgeschlossen hat
-  if (isAuthLoading) {
-       return <div className="flex justify-center items-center h-screen">Authentifizierung wird geprüft...</div>;
-  }
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
-   // Fallback, falls Payloads nach dem Laden nicht da sind (sollte dank ProtectedRoute nicht passieren)
-   if (!idTokenPayload || !accessTokenPayload) {
-        console.error("HomePage Render Error: Payloads missing after auth loading finished.");
-        // Zeige eine Fehlermeldung oder leite direkt aus (obwohl ProtectedRoute dies verhindern sollte)
-        // handleLogout(); // Logout erzwingen?
-        return <div className="p-4 text-red-600">Fehler: Benutzerdaten nicht verfügbar. Bitte erneut anmelden.</div>;
-   }
+  const handleDragStart = useCallback((event) => {
+      const { active } = event;
+      if (active.data?.current?.type === 'tab') {
+          // console.log("HomePage Drag Start:", active.id);
+          setDraggingTabId(active.id);
+      }
+  }, []);
 
-  // Erfolgreiche Anzeige mit Daten aus dem Context
+  const handleDragEnd = useCallback((event) => {
+    const { active, over } = event;
+    // Clear dragging state *before* dispatching actions
+    setDraggingTabId(null);
+
+    if (!over || !active) return;
+    // Prevent dropping tab on itself during reorder
+     if (active.data?.current?.type === 'tab' && active.id === over.id && over.data?.current?.type === 'tab') return;
+
+
+    const activeId = active.id;
+    const overId = over.id;
+    const activeType = active.data?.current?.type;
+    const overData = over.data?.current;
+    const overType = overData?.type;
+
+    // console.log('HomePage Drag End Event:', { activeId, overId, activeType, overType, overData });
+
+    // Scenario 1: Dropping TAB onto FOLDER
+    if (activeType === 'tab' && overType === 'folder') {
+        const tabId = activeId;
+        const folderId = overData?.folderId || overId;
+        const patentData = openTabs.find(tab => tab.id === tabId);
+        if (patentData?.id && patentData?.name && folderId) {
+            // console.log(`HomePage Dispatching addPatentToFolder...`);
+            addPatentToFolder(folderId, { id: patentData.id, name: patentData.name });
+        } else { console.error("Drop cancelled: Missing patent data or folder ID."); }
+        return;
+    }
+
+    // Scenario 2: Reordering TABS
+    if (activeType === 'tab' && overType === 'tab') { // Ensure target is tab
+        const fromIndex = openTabs.findIndex((t) => t.id === activeId);
+        const toIndex = openTabs.findIndex((t) => t.id === overId);
+        if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+            // console.log(`HomePage Dispatching reorderTabs...`);
+            reorderTabs(fromIndex, toIndex);
+        } else { console.error("Reorder cancelled: Invalid indices."); }
+        return;
+    }
+
+    // console.log("HomePage Unhandled drag end scenario:", { activeType, overType });
+  }, [openTabs, addPatentToFolder, reorderTabs]); // Dependencies
+
+  const draggingTabData = draggingTabId ? openTabs.find(tab => tab.id === draggingTabId) : null;
+  const isDragging = draggingTabId !== null; // Boolean flag
+
   return (
-    <div className="p-4 relative">
-      
-      <button
-        onClick={handleLogout}
-        className="absolute top-4 right-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+    <DndContext
+        sensors={sensors}
+        collisionDetection={rectIntersection}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
       >
-        Abmelden
-      </button>
+        <div className="flex h-screen bg-white">
+          <Sidebar />
+          {/* Pass isDragging flag down */}
+          <TabWorkspace isDragging={isDragging} />
+        </div>
 
-      <h2 className="text-2xl font-bold mb-4">Willkommen im Patent View</h2>
-      <p className="mb-6">Nur für eingeloggte Benutzer sichtbar.</p>
-
-     
-      <div className="mb-6">
-        <h3 className="text-xl font-semibold mb-2">ID Token Payload (aus Context):</h3>
-        <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto whitespace-pre-wrap break-all">
-          {JSON.stringify(idTokenPayload, null, 2)}
-        </pre>
-      </div>
-
-      <div>
-        <h3 className="text-xl font-semibold mb-2">Access Token Payload (aus Context):</h3>
-        <pre className="bg-gray-100 p-3 rounded text-sm overflow-auto whitespace-pre-wrap break-all">
-           {JSON.stringify(accessTokenPayload, null, 2)}
-        </pre>
-      </div>
-    </div>
+        <DragOverlay dropAnimation={null}>
+            {draggingTabData ? (
+                <TabOverlayItem name={draggingTabData.name} />
+            ) : null}
+        </DragOverlay>
+    </DndContext>
   );
 }
 
-export default HomePagePatentView;
-*/
-// src/features/patents/pages/HomePagePatentView.jsx
-// NO CHANGES NEEDED - Keep the existing code
-
-// src/features/patents/pages/HomePagePatentView.jsx
-import { PatentWorkspaceProvider } from '../context/PatentWorkspaceContext';
-import { CommentsProvider } from '../context/CommentsContext'; // Import CommentsProvider
-import Sidebar from '../components/Sidebar/Sidebar';
-import TabWorkspace from '../components/TabWorkspace/TabWorkspace';
 
 export default function HomePagePatentView() {
   return (
     <PatentWorkspaceProvider>
-      {/* Wrap the part of the app that needs comment context */}
-      {/* Placing it here makes it available to TabWorkspace and its children */}
       <CommentsProvider>
-        <div className="flex h-screen bg-white">
-          <Sidebar />
-          <TabWorkspace />
-        </div>
+        <PatentViewLayout />
       </CommentsProvider>
     </PatentWorkspaceProvider>
   );

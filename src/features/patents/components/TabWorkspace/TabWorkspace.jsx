@@ -1,258 +1,185 @@
 // src/features/patents/components/TabWorkspace/TabWorkspace.jsx
-import { useState, useId, useEffect, useCallback } from 'react'; // Added useEffect, useCallback
+import { useState, useId, useEffect, useCallback, useMemo } from 'react'; // Import useMemo
 import { Tab } from '@headlessui/react';
+import PropTypes from 'prop-types';
 import {
-  DndContext,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  useDndContext,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  horizontalListSortingStrategy,
+    SortableContext,
+    horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { MdAdd } from 'react-icons/md';
+import clsx from 'clsx';
 import SortableTab from './SortableTab';
 import RenameTabModal from './RenameTabModal';
 import { usePatentWorkspace } from '../../context/PatentWorkspaceContext';
-// Removed ImageClaims import - layout handled here now
-// import ImageClaims from '../PatentViewerImageClaimsChatbot/ImageClaims';
-
-// --- NEW IMPORTS ---
+// Layout Panes
 import DescriptionPane from '../Layout/DescriptionPane';
 import CommentsPane from '../Layout/CommentsPane';
 import ClaimsPane from '../Layout/ClaimsPane';
-import { useMediaQuery } from '@/hooks/useMediaQuery'; // Hook for responsiveness
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
-/* --- helper: blank “new search” tab object ------------------------------- */
+/* --- helper: blank “new search” tab object (unchanged) --- */
 const makeNewSearchTab = (id) => ({
-  id,
-  name: 'New Search',
-  description: '',
-  claims: '',
-  images: '',
+    id, name: 'New Search', description: '<p>Search...</p>', claims: '<p>N/A</p>', images: '', isSearchTab: true
 });
-
-// Key for localStorage
 const COMMENTS_VISIBLE_STORAGE_KEY = 'palito_commentsVisible';
 
-export default function TabWorkspace() {
-  const {
-    openTabs,
-    activeTabIndex,
-    setActiveTab,
-    reorderTabs,
-    addTab,
-    renameTab, // Added renameTab for completeness
-  } = usePatentWorkspace();
+// --- Standalone TabGroupWrapper Component ---
+// Add 'tabGroupKey' prop
+function TabGroupWrapper({
+    tabs,
+    currentIndex,
+    onTabChange,
+    onRenameRequest,
+    onCloseRequest,
+    onAddRequest,
+    showCommentsPane,
+    currentPatent,
+    toggleCommentsPane,
+    isDragging,
+    tabGroupKey, // <-- Receive the key
+}) {
 
-  /* ----- local state ----- */
-  const [renameInfo, setRenameInfo] = useState({
-    open: false,
-    id: null,
-    name: '',
-  });
+  const selectedIndex = currentIndex >= 0 && Array.isArray(tabs) && currentIndex < tabs.length ? currentIndex : 0;
 
-  // --- NEW STATE for Comments Visibility ---
-  const [commentsVisible, setCommentsVisible] = useState(() => {
-    // Initialize state from localStorage, default to true
-    try {
-      const storedValue = localStorage.getItem(COMMENTS_VISIBLE_STORAGE_KEY);
-      return storedValue !== null ? JSON.parse(storedValue) : true;
-    } catch (error) {
-      console.error("Error reading localStorage key “"+COMMENTS_VISIBLE_STORAGE_KEY+"”:", error);
-      return true; // Default to true on error
-    }
-  });
-
-  // --- Responsiveness ---
-  const isLargeScreen = useMediaQuery('(min-width: 1024px)'); // lg breakpoint in Tailwind
-
-  // --- Effect to handle screen size changes and localStorage ---
-  useEffect(() => {
-    // If screen is small, always hide comments
-    if (!isLargeScreen) {
-      if (commentsVisible) {
-        setCommentsVisible(false);
-        // Optionally, update localStorage even when forced closed,
-        // or keep the user's preference for when they resize larger.
-        // localStorage.setItem(COMMENTS_VISIBLE_STORAGE_KEY, JSON.stringify(false));
-      }
-    } else {
-      // On large screens, restore from localStorage if needed (e.g., resizing back up)
-      try {
-        const storedValue = localStorage.getItem(COMMENTS_VISIBLE_STORAGE_KEY);
-        const desiredState = storedValue !== null ? JSON.parse(storedValue) : true;
-        if (commentsVisible !== desiredState) {
-            setCommentsVisible(desiredState);
-        }
-      } catch (error) {
-        console.error("Error reading localStorage on resize:", error);
-      }
-    }
-  }, [isLargeScreen, commentsVisible]); // Rerun when screen size crosses breakpoint or state changes
-
-  // --- Effect for Keyboard Shortcut ---
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      // Ctrl + Shift + C
-      if (event.ctrlKey && event.shiftKey && event.key === 'C') {
-        event.preventDefault();
-        // Only allow toggle on large screens
-        if (isLargeScreen) {
-          toggleComments();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isLargeScreen]); // Re-add listener if isLargeScreen changes, includes toggleComments dependency implicitly
-
-  // --- Toggle Function ---
-  const toggleComments = useCallback(() => {
-      // Only allow toggling on large screens
-      if (!isLargeScreen) return;
-
-      setCommentsVisible(prevVisible => {
-          const nextVisible = !prevVisible;
-          // Persist to localStorage
-          try {
-              localStorage.setItem(COMMENTS_VISIBLE_STORAGE_KEY, JSON.stringify(nextVisible));
-          } catch (error) {
-              console.error("Error writing to localStorage:", error);
-          }
-          return nextVisible;
-      });
-  }, [isLargeScreen]); // Dependency: only changes if screen size allows toggling
-
-
-  /* ----- drag-to-reorder setup ----- */
-  const sensors = useSensors(useSensor(PointerSensor));
-  const handleDragEnd = (e) => {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const from = openTabs.findIndex((t) => t.id === active.id);
-    const to = openTabs.findIndex((t) => t.id === over.id);
-    reorderTabs(from, to);
-  };
-
-  /* ID factory for new-tab creation */
-  const reactId = useId();
-  const activePatent = openTabs[activeTabIndex] || null; // Get the currently active patent data
-
-  /* ----- inner wrapper so we can read DnD context ----- */
-  function TabGroupWrapper() {
-    const dnd = useDndContext();
-    const isDragging = dnd?.active != null;
-
-    // Determine actual visibility based on state AND screen size
-    const showComments = commentsVisible && isLargeScreen;
-
-    return (
-      <Tab.Group
-        selectedIndex={activeTabIndex}
-        onChange={isDragging ? () => {} : setActiveTab}
-        as="div"
-        className="flex h-full w-full flex-col bg-white" // Ensure background for layout
-      >
-        {/* ── TAB LIST ─────────────────────────────────────────── */}
-        <SortableContext
-          items={openTabs.map((t) => t.id)}
-          strategy={horizontalListSortingStrategy}
-        >
-          <Tab.List className="flex h-9 shrink-0 items-center overflow-x-auto border-b bg-gray-50 px-1 shadow-sm">
-            {openTabs.map((tab) => (
-              <SortableTab
-                key={tab.id}
-                id={tab.id}
-                name={tab.name}
-                onRename={() =>
-                  setRenameInfo({ open: true, id: tab.id, name: tab.name })
-                }
-              />
-            ))}
-
-            {/* small “+” icon – not a real tab */}
-            <button
-              type="button"
-              onClick={() =>
-                addTab(makeNewSearchTab(`new-${reactId}-${Date.now()}`))
-              }
-              title="Add new tab"
-              className="ml-1 flex h-7 w-7 shrink-0 items-center justify-center rounded hover:bg-gray-200"
-            >
+  return (
+    <Tab.Group
+      key={tabGroupKey} // <-- Apply the key here
+      selectedIndex={selectedIndex}
+      onChange={isDragging ? () => {} : onTabChange}
+      as="div"
+      className="flex h-full w-full flex-col overflow-hidden bg-gray-50"
+    >
+      {/* ── TAB LIST ─────────────────────────────────────────── */}
+      <div className="relative flex h-10 shrink-0 items-center border-b bg-white px-1 shadow-sm">
+          <SortableContext
+              items={Array.isArray(tabs) ? tabs.map((t) => t.id) : []}
+              strategy={horizontalListSortingStrategy}
+          >
+              <Tab.List className="flex flex-1 h-full items-center overflow-x-auto overflow-y-hidden">
+              {Array.isArray(tabs) && tabs.map((tab) => (
+                  <SortableTab
+                      key={tab.id} // Keep individual tab key
+                      id={tab.id}
+                      name={tab.name}
+                      onRename={() => onRenameRequest(tab.id, tab.name)}
+                      onClose={() => onCloseRequest(tab.id)}
+                  />
+              ))}
+              </Tab.List>
+          </SortableContext>
+           <button type="button" onClick={onAddRequest} title="Add new tab (Ctrl+T)" className="ml-2 mr-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full hover:bg-gray-200 focus:outline-none focus:ring-1 focus:ring-emerald-500">
               <MdAdd size={20} />
-            </button>
-          </Tab.List>
-        </SortableContext>
+          </button>
+      </div>
 
-        {/* ── PANELS CONTAINER (Main Layout Area) ──────────────── */}
-         {/*
-           Using Tab.Panels seems incorrect here as we want the panes
-           (Description, Comments, Claims) to be siblings *within* the active tab's content area.
-           We'll render the panes directly based on the activePatent.
-         */}
-         <div className="flex flex-1 overflow-hidden"> {/* Flex container for panes */}
-            {activePatent ? (
-                <>
-                    <DescriptionPane
-                        htmlContent={activePatent.description}
-                        commentsVisible={showComments}
-                    />
-                    {/* Conditionally render CommentsPane */}
-                    {showComments && <CommentsPane />}
-                    <ClaimsPane
-                        patent={activePatent}
-                        commentsVisible={showComments} // Pass the actual visibility
-                        toggleComments={toggleComments} // Pass the toggle function
-                    />
-                </>
-            ) : (
-                 <div className="flex-1 flex items-center justify-center text-gray-500">
-                    Select a patent or add a new tab.
-                 </div>
-            )}
-         </div>
+      {/* ── PANELS CONTAINER ─────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden bg-white">
+         {currentPatent ? (
+              <>
+                  <DescriptionPane htmlContent={currentPatent.description} commentsVisible={showCommentsPane}/>
+                  {showCommentsPane && <CommentsPane />}
+                  <ClaimsPane patent={currentPatent} commentsVisible={showCommentsPane} toggleComments={toggleCommentsPane}/>
+              </>
+          ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-10 text-center">
+                  {Array.isArray(tabs) && tabs.length === 0 ? (
+                      <>
+                       <p className="text-lg mb-4">No tabs open.</p>
+                       <button onClick={onAddRequest} className="flex items-center gap-2 rounded bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2" > <MdAdd size={18} /> Add New Tab </button>
+                      </>
+                  ) : (
+                      <p>Select a tab to view its content.</p>
+                  )}
+               </div>
+          )}
+      </div>
+    </Tab.Group>
+  );
+}
 
-        {/* --- OLD Tab.Panels approach (commented out) ---
-        <Tab.Panels className="flex-1 overflow-hidden">
-          {openTabs.map((t) => (
-            // Each Tab.Panel would need the 3-pane layout inside it. This is redundant.
-            <Tab.Panel key={t.id} className="h-full flex">
-               <DescriptionPane htmlContent={t.description} commentsVisible={showComments} />
-               {showComments && <CommentsPane />}
-               <ClaimsPane patent={t} commentsVisible={showComments} toggleComments={toggleComments} />
-            </Tab.Panel>
-          ))}
-        </Tab.Panels>
-        */}
-      </Tab.Group>
-    );
-  }
+// Define prop types for TabGroupWrapper
+TabGroupWrapper.propTypes = {
+  tabs: PropTypes.array.isRequired,
+  currentIndex: PropTypes.number.isRequired,
+  onTabChange: PropTypes.func.isRequired,
+  onRenameRequest: PropTypes.func.isRequired,
+  onCloseRequest: PropTypes.func.isRequired,
+  onAddRequest: PropTypes.func.isRequired,
+  showCommentsPane: PropTypes.bool.isRequired,
+  currentPatent: PropTypes.object,
+  toggleCommentsPane: PropTypes.func.isRequired,
+  isDragging: PropTypes.bool.isRequired,
+  tabGroupKey: PropTypes.string.isRequired, // <-- Add key prop type
+};
 
-  /* ----- render ----- */
+
+// Main component receives isDragging prop
+export default function TabWorkspace({ isDragging }) {
+  // Get context, providing defaults
+  const workspaceContext = usePatentWorkspace();
+  const {
+    openTabs = [],
+    activeTabIndex = 0,
+    setActiveTab = () => {},
+    addTab = () => {},
+    closeTab = () => {},
+  } = workspaceContext || {};
+
+  // Local state
+  const [renameInfo, setRenameInfo] = useState({ open: false, id: null, name: '' });
+  const [commentsVisible, setCommentsVisible] = useState(() => { try { const v=localStorage.getItem(COMMENTS_VISIBLE_STORAGE_KEY); return v!==null ? JSON.parse(v):true; } catch {return true;} });
+  const isLargeScreen = useMediaQuery('(min-width: 1024px)');
+  const toggleComments = useCallback(() => { if (!isLargeScreen) return; setCommentsVisible(v => !v); }, [isLargeScreen]);
+
+  // Effects
+  useEffect(() => { if (!isLargeScreen && commentsVisible) setCommentsVisible(false); }, [isLargeScreen, commentsVisible]);
+  useEffect(() => {
+      const handleKeyDown=(e)=>{if(e.ctrlKey&&e.shiftKey&&e.key==='C'){e.preventDefault();if(isLargeScreen)toggleComments();}if((e.ctrlKey||e.metaKey)&&e.key==='w'){e.preventDefault();const id=Array.isArray(openTabs)?openTabs[activeTabIndex]?.id:null;if(id)handleCloseTab(id);}};
+      window.addEventListener('keydown',handleKeyDown); return ()=>window.removeEventListener('keydown',handleKeyDown);
+    }, [isLargeScreen, toggleComments, openTabs, activeTabIndex, closeTab]);
+
+  const handleCloseTab = useCallback((tabIdToClose) => { closeTab(tabIdToClose); }, [closeTab]);
+  const reactId = useId();
+
+   // Derive activePatent based on the index from context state
+   const activePatent = (Array.isArray(openTabs) && activeTabIndex >= 0 && activeTabIndex < openTabs.length) ? openTabs[activeTabIndex] : null;
+
+   // --- FIX: Generate a key based on the order of tab IDs ---
+   const tabOrderKey = useMemo(() => {
+       if (!Array.isArray(openTabs)) return 'no-tabs';
+       return openTabs.map(tab => tab.id).join('-');
+   }, [openTabs]);
+   // --- END FIX ---
+
   return (
     <>
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <TabGroupWrapper />
-      </DndContext>
+        <TabGroupWrapper
+           tabs={openTabs}
+           currentIndex={activeTabIndex}
+           onTabChange={setActiveTab}
+           onRenameRequest={(id, name) => setRenameInfo({ open: true, id, name })}
+           onCloseRequest={handleCloseTab}
+           onAddRequest={() => addTab(makeNewSearchTab(`new-${reactId}-${Date.now()}`))}
+           showCommentsPane={commentsVisible && isLargeScreen}
+           currentPatent={activePatent}
+           toggleCommentsPane={toggleComments}
+           isDragging={isDragging}
+           tabGroupKey={tabOrderKey} // <-- Pass the key here
+        />
 
-      {/* rename-modal */}
       {renameInfo.open && (
         <RenameTabModal
           tabId={renameInfo.id}
           initialName={renameInfo.name}
           open={renameInfo.open}
-          // Ensure renameTab is passed correctly if needed, or handle rename via context dispatch
-           onClose={() => setRenameInfo({ open: false, id: null, name: '' })}
-           // Assuming RenameTabModal uses context now, or pass renameTab prop
-           // renameTab={renameTab} // If RenameTabModal expects it as a prop
-        />
-      )}
+          onClose={() => setRenameInfo({ open: false, id: null, name: '' })}
+         />
+       )}
     </>
   );
 }
+
+// Prop type for TabWorkspace
+TabWorkspace.propTypes = {
+    isDragging: PropTypes.bool.isRequired,
+};
