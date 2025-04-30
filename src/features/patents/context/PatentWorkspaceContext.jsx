@@ -10,6 +10,22 @@ import PropTypes from 'prop-types';
 
 const MAX_RECENT_TABS = 5;
 
+/* ---------- helper: new search tab object --- */
+const makeNewSearchTab = (id) => ({
+    id, // Use the provided unique ID
+    name: 'New Search',
+    description: '<p>Enter search criteria...</p>',
+    claims: '<p>N/A</p>',
+    images: '',
+    paragraphs: [],
+    patentNr: null,
+    isSearchTab: true,
+    isSearchCompleted: false,
+    nameChangedByUser: false // Initialize the flag
+});
+/* -------------------------------------------- */
+
+
 /* ---------- starter data ------------------- */
 const initialState = {
   sidebarCollapsed: JSON.parse(localStorage.getItem('pw_sidebar') ?? 'false'),
@@ -18,13 +34,13 @@ const initialState = {
     { id: 'f2', name: 'Another Folder', patents: [] },
   ],
   openTabs: [
-    { id: 'p1', name: 'EP123456B1', description: 'Desc P1', claims: 'Claims P1', images: '' },
-    { id: 'p2', name: 'EP123456B2', description: 'Desc P2', claims: 'Claims P2', images: '' },
-    { id: 'p3', name: 'EP123456B3', description: 'Desc P3', claims: 'Claims P3', images: '' },
-    { id: 'p4', name: 'US987654A1', description: 'Desc P4', claims: 'Claims P4', images: '' }
+    { id: 'p1', name: 'EP123456B1', patentNr: 'EP123456B1', description: 'Desc P1', paragraphs: [{id: 'p1-p0001', text:'Desc P1'}], claims: 'Claims P1', images: '', isSearchCompleted: true, nameChangedByUser: false },
+    { id: 'p2', name: 'EP123456B2', patentNr: 'EP123456B2', description: 'Desc P2', paragraphs: [{id: 'p2-p0001', text:'Desc P2'}], claims: 'Claims P2', images: '', isSearchCompleted: true, nameChangedByUser: false },
+    { id: 'p3', name: 'EP123456B3', patentNr: 'EP123456B3', description: 'Desc P3', paragraphs: [{id: 'p3-p0001', text:'Desc P3'}], claims: 'Claims P3', images: '', isSearchCompleted: true, nameChangedByUser: false },
+    { id: 'p4', name: 'US987654A1', patentNr: 'US987654A1', description: 'Desc P4', paragraphs: [{id: 'p4-p0001', text:'Desc P4'}], claims: 'Claims P4', images: '', isSearchCompleted: true, nameChangedByUser: false }
   ],
   activeTabIndex: 0,
-  recentTabs: [],
+  recentTabs: [], // Stores { id, name }
 };
 /* ----------------------------------------------------------- */
 
@@ -43,7 +59,7 @@ function reducer(state, action) {
     /* Recent Tabs */
     case 'UPDATE_RECENTS': {
         const { id: recentId, name: recentName } = action.payload;
-        if (!recentId || !recentName) return state;
+        if (!recentId || !recentName || action.payload.isSearchTab === true || action.payload.isSearchCompleted === false) return state;
         const filteredRecents = state.recentTabs.filter(tab => tab.id !== recentId);
         const newRecents = [{ id: recentId, name: recentName }, ...filteredRecents];
         const limitedRecents = newRecents.slice(0, MAX_RECENT_TABS);
@@ -67,12 +83,73 @@ function reducer(state, action) {
            if(state.activeTabIndex === existingIndex) return state;
            return { ...state, activeTabIndex: existingIndex };
       }
-      const newTabs = [...state.openTabs, action.tab];
+      const newTabPayload = {
+          ...action.tab,
+          isSearchCompleted: action.tab.isSearchCompleted ?? (action.tab.isSearchTab !== true),
+          patentNr: action.tab.patentNr || null,
+          nameChangedByUser: action.tab.nameChangedByUser ?? false
+      };
+      const newTabs = [...state.openTabs, newTabPayload];
       return { ...state, openTabs: newTabs, activeTabIndex: newTabs.length - 1 };
     }
 
+    // --- MODIFIED: COMPLETE_SEARCH to preserve unique ID ---
+    case 'COMPLETE_SEARCH': {
+        const { tabId, newData } = action.payload; // tabId is the unique temporary ID
+        let changed = false;
+        let finalTabName = '';
+
+        const updatedTabs = state.openTabs.map(tab => {
+            if (tab.id === tabId) {
+                changed = true;
+                const newPatentName = newData.name || newData.patentNr || newData.id;
+                const nameToSet = tab.nameChangedByUser ? tab.name : newPatentName;
+                finalTabName = nameToSet;
+
+                return {
+                    ...tab, // Keep original unique ID and nameChangedByUser flag
+                    ...newData, // Spread new data (paragraphs, claims, etc.)
+                    // --- FIX: Explicitly restore the original unique ID ---
+                    id: tab.id,
+                    // --- End Fix ---
+                    patentNr: newData.patentNr || newData.id, // Store patent number
+                    name: nameToSet, // Set the name conditionally
+                    isSearchTab: false,
+                    isSearchCompleted: true
+                };
+            }
+            return tab;
+        });
+
+        // Update folder patents and recent tabs based on unique tabId and FINAL name
+        let updatedFolders = state.folders;
+        let updatedRecentTabs = state.recentTabs;
+        if (changed && finalTabName) {
+             updatedFolders = state.folders.map(f => {
+                 let pChanged = false;
+                 const p = f.patents.map(p => {
+                     if (p.id === tabId && p.name !== finalTabName) {
+                         pChanged = true;
+                         return { ...p, name: finalTabName };
+                     }
+                     return p;
+                 });
+                 return pChanged ? { ...f, patents: p } : f;
+             });
+             updatedRecentTabs = state.recentTabs.map(t => {
+                if(t.id === tabId && t.name !== finalTabName) {
+                    return {...t, name: finalTabName};
+                }
+                return t;
+             });
+        }
+
+        return changed ? { ...state, openTabs: updatedTabs, folders: updatedFolders, recentTabs: updatedRecentTabs } : state;
+    }
+    // --- END MODIFIED: COMPLETE_SEARCH ---
+
+
     case 'REORDER_TABS': {
-        // This version calculates and returns the updated index
         const { from, to } = action;
         if ( from < 0 || from >= state.openTabs.length || to < 0 || to >= state.openTabs.length || from === to ) {
             return state;
@@ -94,11 +171,18 @@ function reducer(state, action) {
         const newName = action.newName?.trim();
         if (!newName) return state;
         let changed = false;
-        const openTabs = state.openTabs.map(t => { if(t.id===action.id && t.name!==newName){changed=true; return {...t, name:newName};} return t; });
+        const openTabs = state.openTabs.map(t => {
+            if(t.id === action.id && t.name !== newName) {
+                changed = true;
+                return {...t, name: newName, nameChangedByUser: true }; // Set flag
+            }
+            return t;
+        });
         const folders = state.folders.map(f => { let pChanged=false; const p=f.patents.map(p => { if(p.id===action.id && p.name!==newName){pChanged=true; return {...p, name:newName};} return p; }); return pChanged ? {...f, patents:p} : f; });
         const recentTabs = state.recentTabs.map(t => { if(t.id===action.id && t.name!==newName){changed=true; return {...t, name:newName};} return t; });
         return changed ? { ...state, openTabs, folders, recentTabs } : state;
     }
+
 
     case 'CLOSE_TAB': {
         const tabIdToClose = action.id;
@@ -138,7 +222,13 @@ function reducer(state, action) {
       const { folderId, patent } = action;
        if (!patent || !patent.id || !patent.name) return state;
        let updated = false;
-       const updatedFolders = state.folders.map(f => { if (f.id === folderId && !f.patents.some(p => p.id === patent.id)){ updated=true; return { ...f, patents: [...f.patents, { id: patent.id, name: patent.name }] }; } return f; });
+       const updatedFolders = state.folders.map(f => {
+            if (f.id === folderId && !f.patents.some(p => p.id === patent.id)){
+                updated=true;
+                return { ...f, patents: [...f.patents, { id: patent.id, name: patent.name }] };
+            }
+            return f;
+       });
        return updated ? { ...state, folders: updatedFolders } : state;
     }
     case 'REMOVE_PATENT_FROM_FOLDER': {
@@ -157,15 +247,15 @@ function reducer(state, action) {
 export function PatentWorkspaceProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  // Effect to update recents
+  // Effect to update recents when active tab changes
   useEffect(() => {
        if (state.activeTabIndex >= 0 && state.activeTabIndex < state.openTabs.length) {
           const activeTab = state.openTabs[state.activeTabIndex];
-          if (activeTab?.id && (state.recentTabs.length === 0 || state.recentTabs[0].id !== activeTab.id)) {
-             dispatch({ type: 'UPDATE_RECENTS', payload: { id: activeTab.id, name: activeTab.name } });
+          if (activeTab?.id && activeTab.isSearchCompleted && (state.recentTabs.length === 0 || state.recentTabs[0].id !== activeTab.id)) {
+             dispatch({ type: 'UPDATE_RECENTS', payload: { id: activeTab.id, name: activeTab.name, isSearchCompleted: true } });
           }
       }
-  }, [state.activeTabIndex, state.openTabs]);
+  }, [state.activeTabIndex, state.openTabs, state.recentTabs]);
 
 
   // Memoized dispatchers
@@ -174,6 +264,7 @@ export function PatentWorkspaceProvider({ children }) {
     toggleSidebar: useCallback(() => dispatch({ type: 'TOGGLE_SIDEBAR' }), []),
     setActiveTab : useCallback((i) => dispatch({ type: 'SET_ACTIVE_TAB', index: i }), []),
     addTab       : useCallback((tab) => dispatch({ type: 'ADD_TAB', tab }), []),
+    completeSearch: useCallback((tabId, newData) => dispatch({ type: 'COMPLETE_SEARCH', payload: { tabId, newData } }), []),
     reorderTabs  : useCallback((f, t) => dispatch({ type: 'REORDER_TABS', from: f, to: t }), []),
     renameTab    : useCallback((id, n) => dispatch({ type: 'RENAME_TAB', id, newName: n }), []),
     closeTab     : useCallback((id) => dispatch({ type: 'CLOSE_TAB', id }), []),
@@ -182,6 +273,7 @@ export function PatentWorkspaceProvider({ children }) {
     deleteFolder : useCallback((id) => dispatch({ type: 'DELETE_FOLDER', id }), []),
     addPatentToFolder    : useCallback((folderId, patent) => dispatch({ type: 'ADD_PATENT_TO_FOLDER', folderId, patent }), []),
     removePatentFromFolder: useCallback((folderId, patentId) => dispatch({ type: 'REMOVE_PATENT_FROM_FOLDER', folderId, patentId }), []),
+    makeNewSearchTab: makeNewSearchTab,
   };
 
   return (
