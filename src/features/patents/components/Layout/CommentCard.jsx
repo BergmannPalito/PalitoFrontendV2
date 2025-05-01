@@ -29,29 +29,28 @@ const formatRelativeTime = (date) => {
 // Receive 'level' prop to determine nesting depth
 export default function CommentCard({ comment, level }) {
     const [isRepliesExpanded, setIsRepliesExpanded] = useState(false);
-    const [isReplying, setIsReplying] = useState(false);
+    const [isReplying, setIsReplying] = useState(false); // Controls visibility of reply section
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState(comment.text);
     // State for Reply Input
     const [replyText, setReplyText] = useState('');
-    const [showReplyButtons, setShowReplyButtons] = useState(false);
 
     // Get context actions
     const { deleteComment, editComment, addReply } = useComments();
 
-    // Ref for the reply section (input + buttons) to handle blur correctly
-    const replySectionRef = useRef(null);
+    // Ref for the reply input field (might need it later, keep for now)
+    const replyInputRef = useRef(null);
 
     // Click outside handler
     const cardRef = useClickOutside(() => {
+        // Close edit mode on outside click
         if (isEditing) {
             setIsEditing(false);
-            setEditText(comment.text); // Reset edit text on clicking outside
+            setEditText(comment.text); // Reset edit text
         }
-        // If clicking outside while replying, reset reply state
+        // Close reply mode on outside click
         if (isReplying) {
             setIsReplying(false);
-            setShowReplyButtons(false);
             setReplyText('');
         }
     });
@@ -69,76 +68,48 @@ export default function CommentCard({ comment, level }) {
     };
 
     const handleActivateReplying = () => {
-        // Only allow activating reply for top-level comments (level 0) and if not editing
         if (!isEditing && level === 0) {
             setIsReplying(true);
         }
     };
 
-    // Delete handler (no confirmation)
     const handleDelete = () => {
-        console.log('Attempting delete (no confirmation):', comment.id);
         deleteComment(comment.id);
     };
 
-    // Edit handler
     const handleEdit = () => {
-        setEditText(comment.text); // Start edit with current text
+        setEditText(comment.text);
         setIsEditing(true);
-        setIsReplying(false); // Close reply input when editing
-        setIsRepliesExpanded(false); // Close replies when editing
+        setIsReplying(false);
+        setIsRepliesExpanded(false);
     };
 
-    // Save handler
     const handleSaveEdit = () => {
-        if (editText.trim() === '') return; // Optional: Prevent empty save
+        if (editText.trim() === '') return;
         if (editText !== comment.text) {
             editComment(comment.id, editText);
         }
         setIsEditing(false);
     };
 
-    // Cancel handler
     const handleCancelEdit = () => {
         setIsEditing(false);
-        setEditText(comment.text); // Reset text on cancel
+        setEditText(comment.text);
     };
 
-    // --- Reply Input Handlers ---
-    const handleReplyInputFocus = () => {
-        setShowReplyButtons(true);
-    };
-
-    // Blur handler with timeout
-    const handleReplyInputBlur = () => {
-         setTimeout(() => {
-             // Check if focus is still within the reply section
-             if (replySectionRef.current && !replySectionRef.current.contains(document.activeElement)) {
-                 setShowReplyButtons(false);
-             }
-         }, 100); // Small delay
-    };
-
-    // Cancel Reply handler
     const handleCancelReply = () => {
-        setShowReplyButtons(false);
         setReplyText('');
-        setIsReplying(false); // Hide input completely on cancel
+        setIsReplying(false);
     };
 
-    // Post Reply handler
     const handlePostReply = () => {
         if (replyText.trim()) {
-            console.log(`Posting reply to ${comment.id}: ${replyText}`);
-            addReply(comment.id, replyText); // Use parent comment ID
+            addReply(comment.id, replyText);
             setReplyText('');
-            setShowReplyButtons(false);
-            setIsReplying(false); // Hide input after posting
-            // Expand replies after adding one
+            setIsReplying(false);
             if (!isRepliesExpanded && hasReplies) {
                  setIsRepliesExpanded(true);
             } else if (!isRepliesExpanded && !hasReplies) {
-                 // Need a slight delay for state update if it was the first reply
                  setTimeout(() => setIsRepliesExpanded(true), 50);
             }
         }
@@ -150,14 +121,19 @@ export default function CommentCard({ comment, level }) {
         <div
             ref={cardRef}
             onClick={handleActivateReplying}
-            // Only add cursor-pointer if it's a top-level comment (replyable) and not editing
             className={clsx(
-                "rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-shadow duration-150",
-                !isEditing && level === 0 && "cursor-pointer hover:shadow-md",
-                isEditing && "ring-2 ring-emerald-300 shadow-md"
+                "rounded-lg border p-3 transition-all duration-150 ease-in-out", // Base classes + transition
+                // Default state: not editing, not replying
+                !isEditing && !isReplying && "border-gray-200 bg-white shadow-sm",
+                // Hover state (only when not editing/replying and top-level)
+                !isEditing && !isReplying && level === 0 && "cursor-pointer hover:shadow-md hover:border-gray-300",
+                // Editing state
+                isEditing && "border-emerald-400 bg-white ring-2 ring-emerald-300 shadow-md",
+                // --- ENHANCED HIGHLIGHTING: Replying state ---
+                isReplying && !isEditing && "bg-emerald-50 border-emerald-300 shadow-lg ring-1 ring-emerald-200" // Example: Light bg, emerald border/ring, larger shadow
             )}
         >
-            {/* --- Header Section --- */}
+            {/* --- Header Section (No changes needed here) --- */}
             <div className="mb-2 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
                 {/* Timestamp */}
                 <span className="text-xs font-medium text-gray-500">{relativeTime}</span>
@@ -195,7 +171,6 @@ export default function CommentCard({ comment, level }) {
                         >
                             <Menu.Items className="absolute right-0 z-20 mt-1 w-28 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
                                 <div className="py-1">
-                                    {/* Menu Items using correct structure */}
                                     <Menu.Item>
                                         {({ active, close }) => (
                                             <button onClick={() => { handleEdit(); close(); }} className={clsx('group flex w-full items-center px-3 py-1 text-xs', active ? 'bg-gray-100 text-gray-900' : 'text-gray-700')}>
@@ -217,9 +192,8 @@ export default function CommentCard({ comment, level }) {
                 </div>
             </div>
 
-            {/* --- Body Section (Comment Text OR Edit Area) --- */}
+            {/* --- Body Section (Comment Text OR Edit Area) (No changes needed here) --- */}
             {isEditing ? (
-                // Edit State UI
                 <div className="mb-2" onClick={(e) => e.stopPropagation()}>
                     <textarea
                         value={editText} onChange={(e) => setEditText(e.target.value)} rows={3}
@@ -232,7 +206,6 @@ export default function CommentCard({ comment, level }) {
                     </div>
                 </div>
             ) : (
-                 // Default State UI (Comment Text + Replies Link)
                 <>
                     <p className="mb-2 text-sm text-gray-800 break-words">{comment.text}</p>
                     {hasReplies && (
@@ -243,36 +216,29 @@ export default function CommentCard({ comment, level }) {
                 </>
             )}
 
-            {/* --- Replies Section (Conditional) --- */}
-            {/* Show only if expanded AND has replies AND NOT editing */}
+            {/* --- Replies Section (Conditional) (No changes needed here) --- */}
             {isRepliesExpanded && hasReplies && !isEditing && (
                 <div className="ml-3 mt-2 space-y-3 border-l-2 border-gray-200 pl-4 pt-1" onClick={(e) => e.stopPropagation()}>
                     {comment.replies.map((reply) => (
-                        // Recursively render CommentCard, passing incremented level
                         <CommentCard key={reply.id} comment={reply} level={level + 1} />
                     ))}
                 </div>
             )}
 
-            {/* --- Reply Input Section (Conditional) --- */}
-            {/* Show only if isReplying is active AND NOT editing AND level is 0 */}
+            {/* --- Reply Input Section (Conditional) (No changes needed here) --- */}
             {isReplying && !isEditing && level === 0 && (
-                // Attach ref to this container for blur handling
-                <div ref={replySectionRef} className="mt-2" onClick={(e) => e.stopPropagation()}>
+                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
                     <input
+                        ref={replyInputRef}
                         type="text" placeholder="Add a reply"
                         className="w-full rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
                         value={replyText} onChange={(e) => setReplyText(e.target.value)}
-                        onFocus={handleReplyInputFocus} onBlur={handleReplyInputBlur}
-                        onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePostReply();} }} // Handle Enter key
+                        onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePostReply();} }}
                     />
-                    {/* Conditional Reply/Cancel Buttons */}
-                    {showReplyButtons && (
-                        <div className="mt-1.5 flex justify-end gap-2">
-                            <button onClick={handleCancelReply} className="rounded px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700">Cancel</button>
-                            <button onClick={handlePostReply} className="rounded px-2 py-0.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50" disabled={!replyText.trim()} >Reply</button>
-                        </div>
-                    )}
+                    <div className="mt-1.5 flex justify-end gap-2">
+                        <button onClick={handleCancelReply} className="rounded px-2 py-0.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700">Cancel</button>
+                        <button onClick={handlePostReply} className="rounded px-2 py-0.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50" disabled={!replyText.trim()} >Reply</button>
+                    </div>
                 </div>
             )}
         </div> // End main card div
