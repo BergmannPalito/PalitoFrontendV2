@@ -23,6 +23,6 @@ export function mockSearch(pubNumber) {
                 console.log(`[mockSearch] No matching data found for ${pubNumber} in mock file. Rejecting.`);
                 reject(new Error(`Mock data only available for ${mockPatentData.patentNr}. Patent ${pubNumber} not found.`));
             }
-        }, 5000); // Adjusted delay slightly
+        }, 50); // Adjusted delay slightly
     });
 }
