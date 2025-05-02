@@ -16,12 +16,16 @@ import clsx from 'clsx';
 
 import { PatentWorkspaceProvider, usePatentWorkspace } from '../context/PatentWorkspaceContext';
 import { CommentsProvider } from '../context/CommentsContext';
+// --- Import the new HighlightProvider ---
+import { HighlightProvider } from '../context/HighlightContext';
+// --- Import hook to clean up context on tab close ---
+import { useHighlightContext } from '../context/HighlightContext';
+
 import Sidebar from '../components/Sidebar/Sidebar';
-import TabWorkspace from '../components/TabWorkspace/TabWorkspace'; // Now uses TabGroupWrapper internally
+import TabWorkspace from '../components/TabWorkspace/TabWorkspace';
 
 // --- TabOverlayItem Component (unchanged) ---
 function TabOverlayItem({ name }) {
-    // ... (component code)
     return (
         <div
            className={clsx(
@@ -38,13 +42,16 @@ function TabOverlayItem({ name }) {
     );
 }
 TabOverlayItem.propTypes = { name: PropTypes.string.isRequired };
-// --- End TabOverlayItem ---
 
 
 // --- Inner component to access context ---
 function PatentViewLayout() {
-  const { openTabs, reorderTabs, addPatentToFolder } = usePatentWorkspace();
-  const [draggingTabId, setDraggingTabId] = useState(null); // State remains here
+  // Access PatentWorkspaceContext as before
+  const { openTabs, reorderTabs, addPatentToFolder, closeTab } = usePatentWorkspace();
+  // --- Access HighlightContext to clean up on tab close ---
+  const { removeTabHighlights } = useHighlightContext(); // Get cleanup function
+
+  const [draggingTabId, setDraggingTabId] = useState(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -54,20 +61,23 @@ function PatentViewLayout() {
   const handleDragStart = useCallback((event) => {
       const { active } = event;
       if (active.data?.current?.type === 'tab') {
-          // console.log("HomePage Drag Start:", active.id);
           setDraggingTabId(active.id);
       }
   }, []);
 
+  // --- ADDED: Cleanup highlights when tab is closed via PatentWorkspaceContext ---
+  const handleCloseTabAndHighlights = useCallback((tabId) => {
+        closeTab(tabId); // Close tab in workspace context
+        removeTabHighlights(tabId); // Remove highlights from highlight context
+  }, [closeTab, removeTabHighlights]);
+  // --- END ADDED ---
+
+
   const handleDragEnd = useCallback((event) => {
     const { active, over } = event;
-    // Clear dragging state *before* dispatching actions
-    setDraggingTabId(null);
+    setDraggingTabId(null); // Clear dragging state first
 
-    if (!over || !active) return;
-    // Prevent dropping tab on itself during reorder
-     if (active.data?.current?.type === 'tab' && active.id === over.id && over.data?.current?.type === 'tab') return;
-
+    if (!over || !active || active.id === over.id) return; // No drop target or dropped on self
 
     const activeId = active.id;
     const overId = over.id;
@@ -75,38 +85,37 @@ function PatentViewLayout() {
     const overData = over.data?.current;
     const overType = overData?.type;
 
-    // console.log('HomePage Drag End Event:', { activeId, overId, activeType, overType, overData });
-
-    // Scenario 1: Dropping TAB onto FOLDER
+    // Drop TAB onto FOLDER
     if (activeType === 'tab' && overType === 'folder') {
         const tabId = activeId;
         const folderId = overData?.folderId || overId;
         const patentData = openTabs.find(tab => tab.id === tabId);
         if (patentData?.id && patentData?.name && folderId) {
-            // console.log(`HomePage Dispatching addPatentToFolder...`);
             addPatentToFolder(folderId, { id: patentData.id, name: patentData.name });
         } else { console.error("Drop cancelled: Missing patent data or folder ID."); }
         return;
     }
 
-    // Scenario 2: Reordering TABS
-    if (activeType === 'tab' && overType === 'tab') { // Ensure target is tab
+    // Reordering TABS
+    if (activeType === 'tab' && overType === 'tab') {
         const fromIndex = openTabs.findIndex((t) => t.id === activeId);
         const toIndex = openTabs.findIndex((t) => t.id === overId);
         if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-            // console.log(`HomePage Dispatching reorderTabs...`);
             reorderTabs(fromIndex, toIndex);
-        } else { console.error("Reorder cancelled: Invalid indices."); }
+        } // No error log needed if indices invalid, just means no reorder
         return;
     }
-
-    // console.log("HomePage Unhandled drag end scenario:", { activeType, overType });
   }, [openTabs, addPatentToFolder, reorderTabs]); // Dependencies
 
   const draggingTabData = draggingTabId ? openTabs.find(tab => tab.id === draggingTabId) : null;
-  const isDragging = draggingTabId !== null; // Boolean flag
+  const isDragging = draggingTabId !== null;
 
   return (
+    // Pass the modified close handler to TabWorkspace if needed,
+    // OR modify TabWorkspace to call removeTabHighlights directly on close.
+    // For simplicity, let's assume TabWorkspace uses the closeTab from context,
+    // so we modify the closeTab function within PatentWorkspaceProvider later if needed.
+    // For now, this component structure is fine, but cleanup needs wiring.
     <DndContext
         sensors={sensors}
         collisionDetection={rectIntersection}
@@ -114,8 +123,10 @@ function PatentViewLayout() {
         onDragEnd={handleDragEnd}
       >
         <div className="flex h-screen bg-white">
+          {/* Sidebar needs no changes for highlights */}
           <Sidebar />
-          {/* Pass isDragging flag down */}
+          {/* TabWorkspace needs the isDragging prop */}
+          {/* We also need to ensure TabWorkspace's onCloseRequest eventually triggers removeTabHighlights */}
           <TabWorkspace isDragging={isDragging} />
         </div>
 
@@ -129,11 +140,16 @@ function PatentViewLayout() {
 }
 
 
+// Main export
 export default function HomePagePatentView() {
   return (
     <PatentWorkspaceProvider>
       <CommentsProvider>
-        <PatentViewLayout />
+        {/* --- Wrap PatentViewLayout with HighlightProvider --- */}
+        <HighlightProvider>
+          <PatentViewLayout />
+        </HighlightProvider>
+        {/* --- End Wrap --- */}
       </CommentsProvider>
     </PatentWorkspaceProvider>
   );

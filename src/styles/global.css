@@ -15,3 +15,8 @@ body {
   @apply mx-auto w-full max-w-7xl px-4;
 }
 */
+
+/* Style for highlighted text */
+.highlight {
+  @apply bg-yellow-200; /* You can customize this Tailwind class */
+}

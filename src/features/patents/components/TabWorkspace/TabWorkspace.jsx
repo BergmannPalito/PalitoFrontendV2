@@ -12,7 +12,7 @@ import SortableTab from './SortableTab';
 import RenameTabModal from './RenameTabModal';
 import { usePatentWorkspace } from '../../context/PatentWorkspaceContext';
 // Layout Panes
-import DescriptionPane from '../Layout/DescriptionPane'; // <- Keep this
+import DescriptionPane from '../Layout/DescriptionPane'; // Needs tabId prop
 import CommentsPane from '../Layout/CommentsPane';
 import ClaimsPane from '../Layout/ClaimsPane';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -23,7 +23,7 @@ import { mockSearch } from '@/features/patents/services/mockSearch';
 const COMMENTS_VISIBLE_STORAGE_KEY = 'palito_commentsVisible';
 
 // --- Standalone TabGroupWrapper Component ---
-// Now accepts scrollContainerRef from parent
+// Now accepts scrollContainerRef and tabId from parent
 function TabGroupWrapper({
     tabs,
     currentIndex,
@@ -38,6 +38,9 @@ function TabGroupWrapper({
     tabGroupKey,
     scrollContainerRef,
     onCompleteSearchRequest, // Callback for search completion
+    // --- ADD tabId prop ---
+    tabId,
+    // --- END ADD ---
 }) {
   const [isOverflowing, setIsOverflowing] = useState(false);
   // Local state for the search input within a search tab
@@ -101,7 +104,7 @@ function TabGroupWrapper({
    // --- End Search Handling ---
 
    // Determine if the current active tab is in the "search" state
-   const isActiveTabInSearchState = currentPatent && !currentPatent.isSearchCompleted;
+   const isActiveTabInSearchState = currentPatent && currentPatent.isSearchCompleted === false; // Explicit check
 
   return (
     <Tab.Group
@@ -145,6 +148,7 @@ function TabGroupWrapper({
                             <MdSearch className="text-gray-400 mr-2 flex-shrink-0" size={18} />
                             <input
                                 type="text"
+                                name="searchQueryInput" // Added name
                                 placeholder="Enter publication number (e.g., EP1626661B1)"
                                 className="flex-1 text-sm outline-none bg-transparent"
                                 value={searchQuery}
@@ -180,18 +184,17 @@ function TabGroupWrapper({
               ) : (
                    // --- Render Normal Panes ---
                   <>
-                      {/* --- MODIFIED: Pass paragraphs to DescriptionPane --- */}
+                      {/* --- MODIFIED: Pass tabId to DescriptionPane --- */}
                       <DescriptionPane
-                        paragraphs={currentPatent.paragraphs || []} // Pass paragraphs array
+                        tabId={tabId} // Pass the tabId received from props
+                        paragraphs={currentPatent.paragraphs || []}
                         commentsVisible={showCommentsPane}
                       />
                       {/* -------------------------------------------------- */}
 
-                      {/* Render Comments only if visible AND search is completed */}
                       {showCommentsPane && <CommentsPane />}
-                      {/* Render Claims/Figures only if search is completed */}
                       <ClaimsPane
-                        patent={currentPatent} // Pass full patent object
+                        patent={currentPatent}
                         commentsVisible={showCommentsPane}
                         toggleComments={toggleCommentsPane}
                       />
@@ -234,6 +237,14 @@ TabGroupWrapper.propTypes = {
     PropTypes.shape({ current: PropTypes.instanceOf(Element) })
   ]),
   onCompleteSearchRequest: PropTypes.func.isRequired,
+  // --- ADD tabId prop type ---
+  tabId: PropTypes.string, // Can be null if no active tab
+  // --- END ADD ---
+};
+TabGroupWrapper.defaultProps = { // Add default props for potentially null values
+  currentPatent: null,
+  tabId: null,
+  scrollContainerRef: null,
 };
 
 
@@ -246,9 +257,9 @@ export default function TabWorkspace({ isDragging }) {
     setActiveTab = () => {},
     addTab = () => {},
     closeTab = () => {},
-    completeSearch = () => {}, // <-- Get the new action dispatcher
+    completeSearch = () => {},
     makeNewSearchTab = (id) => ({ // Fallback if context doesn't provide it yet
-        id, name: 'New Search', description: '<p>Enter search criteria...</p>', claims: '<p>N/A</p>', images: '', isSearchTab: true, isSearchCompleted: false
+        id, name: 'New Search', description: '<p>Enter search criteria...</p>', claims: '<p>N/A</p>', images: '', paragraphs: [], patentNr: null, isSearchTab: true, isSearchCompleted: false, nameChangedByUser: false
     }),
   } = workspaceContext || {};
 
@@ -257,19 +268,43 @@ export default function TabWorkspace({ isDragging }) {
   const isLargeScreen = useMediaQuery('(min-width: 1024px)');
   const toggleComments = useCallback(() => { if (!isLargeScreen) return; setCommentsVisible(v => !v); }, [isLargeScreen]);
   const reactId = useId();
-  const scrollContainerRef = useRef(null); // <-- Create ref here in the parent
+  const scrollContainerRef = useRef(null); // Ref for the tab bar scroll container
 
-  // Effect to scroll to end when a tab is added
-  useEffect(() => {
+  // Effect to scroll active tab into view (more robust)
+   useEffect(() => {
       const scrollContainer = scrollContainerRef.current;
-      const isLastTabActive = activeTabIndex === openTabs.length - 1;
-      if (isLastTabActive && scrollContainer && openTabs.length > 0) {
-          requestAnimationFrame(() => {
-              const currentScrollContainer = scrollContainerRef.current;
-              if(currentScrollContainer){ currentScrollContainer.scrollLeft = currentScrollContainer.scrollWidth; }
-          });
+      if (scrollContainer && activeTabIndex >= 0 && activeTabIndex < openTabs.length) {
+          // Find the button element corresponding to the selected tab
+          // Headless UI typically renders Tabs as buttons with role="tab"
+          // We might need to adjust the selector based on actual rendered output
+          const activeTabElement = scrollContainer.querySelector(`button[role="tab"][id^="headlessui-tab-"][data-headlessui-state="selected"]`);
+
+          if (activeTabElement) {
+              const scrollLeft = activeTabElement.offsetLeft - scrollContainer.offsetLeft; // Position relative to scroll container start
+              const elementWidth = activeTabElement.offsetWidth;
+              const containerWidth = scrollContainer.clientWidth;
+              const currentScroll = scrollContainer.scrollLeft;
+
+              // Check if tab is fully or partially out of view
+              const isOutOfViewLeft = scrollLeft < currentScroll;
+              const isOutOfViewRight = scrollLeft + elementWidth > currentScroll + containerWidth;
+
+              if (isOutOfViewLeft || isOutOfViewRight) {
+                   // Scroll to center the tab, ensuring smooth behavior
+                   scrollContainer.scrollTo({
+                       left: scrollLeft - (containerWidth / 2) + (elementWidth / 2),
+                       behavior: 'smooth'
+                   });
+              }
+          } else if (openTabs.length > 0 && activeTabIndex === openTabs.length - 1) {
+              // Fallback for newly added tab (scroll to end)
+              requestAnimationFrame(() => {
+                  if(scrollContainerRef.current){ scrollContainerRef.current.scrollLeft = scrollContainerRef.current.scrollWidth; }
+              });
+          }
       }
-  }, [activeTabIndex, openTabs.length]);
+  }, [activeTabIndex, openTabs.length]); // Rerun when active tab or count changes
+
 
   // Effect to manage comments visibility based on screen size
   useEffect(() => { if (!isLargeScreen && commentsVisible) setCommentsVisible(false); }, [isLargeScreen, commentsVisible]);
@@ -286,11 +321,11 @@ export default function TabWorkspace({ isDragging }) {
   // Effect for keyboard shortcuts (Ctrl+Shift+C, Ctrl+W, Ctrl+T)
   useEffect(() => {
       const handleKeyDown=(e)=>{
+          const activeTabId = Array.isArray(openTabs)?openTabs[activeTabIndex]?.id:null; // Get ID inside handler
           if(e.ctrlKey&&e.shiftKey&&e.key==='C'){e.preventDefault();if(isLargeScreen)toggleComments();}
           if((e.ctrlKey||e.metaKey)&&e.key==='w'){
               e.preventDefault();
-              const id=Array.isArray(openTabs)?openTabs[activeTabIndex]?.id:null;
-              if(id)handleCloseTab(id);
+              if(activeTabId) handleCloseTab(activeTabId); // Use ID from handler scope
           }
           // Shortcut for adding a new tab (Ctrl+T)
           if ((e.ctrlKey || e.metaKey) && e.key === 't') {
@@ -299,22 +334,27 @@ export default function TabWorkspace({ isDragging }) {
           }
       };
       window.addEventListener('keydown',handleKeyDown); return ()=>window.removeEventListener('keydown',handleKeyDown);
-    // Add handleAddTab to dependencies if it changes, or wrap it in useCallback
-    }, [isLargeScreen, toggleComments, openTabs, activeTabIndex, closeTab, addTab, makeNewSearchTab, reactId]); // Added addTab, makeNewSearchTab, reactId
+    }, [isLargeScreen, toggleComments, openTabs, activeTabIndex, closeTab, addTab, makeNewSearchTab, reactId]); // Keep dependencies
 
   // Handler for closing tab (wrapped in useCallback)
   const handleCloseTab = useCallback((tabIdToClose) => { closeTab(tabIdToClose); }, [closeTab]);
 
   // Handler for adding a new search tab (wrapped in useCallback)
   const handleAddTab = useCallback(() => {
-      // Use the makeNewSearchTab function (from context or local)
       const newTab = makeNewSearchTab(`new-${reactId}-${Date.now()}`);
       addTab(newTab);
   }, [addTab, makeNewSearchTab, reactId]); // Dependencies for adding a tab
 
+  // Handler for rename request
+  const handleRenameRequest = useCallback((id, name) => setRenameInfo({ open: true, id, name }), []);
 
   // Get the currently active patent/tab object
   const activePatent = (Array.isArray(openTabs) && activeTabIndex >= 0 && activeTabIndex < openTabs.length) ? openTabs[activeTabIndex] : null;
+
+  // --- GET TAB ID ---
+  const currentTabId = activePatent?.id || null;
+  // --- END GET TAB ID ---
+
 
   // Key to force re-render of Tab.Group when tab order changes
   const tabOrderKey = useMemo(() => {
@@ -328,16 +368,19 @@ export default function TabWorkspace({ isDragging }) {
            tabs={openTabs}
            currentIndex={activeTabIndex}
            onTabChange={setActiveTab}
-           onRenameRequest={(id, name) => setRenameInfo({ open: true, id, name })}
-           onCloseRequest={handleCloseTab}
-           onAddRequest={handleAddTab} // Use the memoized handler
+           onRenameRequest={handleRenameRequest} // Use the memoized handler
+           onCloseRequest={handleCloseTab}       // Use the memoized handler
+           onAddRequest={handleAddTab}          // Use the memoized handler
            showCommentsPane={commentsVisible && isLargeScreen}
            currentPatent={activePatent}
-           toggleCommentsPane={toggleComments}
+           toggleCommentsPane={toggleComments} // Use the memoized handler
            isDragging={isDragging}
            tabGroupKey={tabOrderKey}
-           scrollContainerRef={scrollContainerRef} // <-- Pass ref down
-           onCompleteSearchRequest={completeSearch} // <-- Pass context action down
+           scrollContainerRef={scrollContainerRef}
+           onCompleteSearchRequest={completeSearch}
+           // --- PASS TAB ID DOWN ---
+           tabId={currentTabId}
+           // --- END PASS ---
         />
 
       {renameInfo.open && (
