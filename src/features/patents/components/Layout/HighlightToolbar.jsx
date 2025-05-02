@@ -1,107 +1,134 @@
 // src/features/patents/components/Layout/HighlightToolbar.jsx
-// VERSION REVERTED to use LEFT positioning
-
 import React from 'react';
 import PropTypes from 'prop-types';
 import { createPortal } from 'react-dom';
-import { Highlighter } from 'lucide-react';
+// --- Import necessary icons ---
+import { Highlighter, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function HighlightToolbar({
   editor,
-  showToolbar,
-  position, // Receives { top, left }
+  position, // Receives { top, left } - Assuming left is used based on previous state
   isTextSelected,
+  // --- Receive new props ---
+  isHighlightSelected, // Boolean: is the selected text currently highlighted?
   onHighlight,
+  onRemoveHighlight, // Function to call for removing highlight
+  // --- End new props ---
 }) {
   const toolbarRef = React.useRef(null);
 
+  // Prevent mousedown on toolbar from deselecting text
   const handleMouseDown = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    // console.log('[HighlightToolbar] handleMouseDown: Target:', event.target);
   };
 
-  // Log props (optional, can be removed if not debugging visibility)
-  // console.log('[HighlightToolbar] Rendering. Props:', { showToolbar, position, isTextSelected });
+  // --- Determine if the toolbar should be shown at all ---
+  // Show if there's a valid position AND either text is selected (for Add)
+  // OR highlighted text is selected (for Remove)
+  const showToolbar = position && (isTextSelected || isHighlightSelected);
 
-  // Check if position is valid (using left now)
-  const isPositionValid = typeof position?.top === 'number' && typeof position?.left === 'number';
-  // console.log('[HighlightToolbar] Calculated isPositionValid (using left):', isPositionValid);
-
-  // Render null if visibility conditions aren't met
-  if (!showToolbar || !isPositionValid) {
-     // console.log('[HighlightToolbar] Rendering null.');
+  // --- Render null if toolbar shouldn't be shown ---
+  if (!showToolbar) {
      return null;
   }
 
-  const handleButtonClick = (e) => {
+  // --- Handlers for button clicks ---
+  const handleAddClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // console.log('[HighlightToolbar] handleButtonClick triggered.');
     if (isTextSelected && onHighlight) {
         onHighlight();
     }
   };
 
-  const buttonIcon = <Highlighter size={16} />;
-  const buttonText = 'Highlight';
-  const buttonClass = 'hover:bg-yellow-100 text-yellow-700';
+  const handleRemoveClick = (e) => {
+     e.preventDefault();
+     e.stopPropagation();
+     // Only call remove if highlighted text is actually selected
+     if (isHighlightSelected && onRemoveHighlight) {
+         onRemoveHighlight();
+     }
+   };
+  // --- End Handlers ---
+
 
   return createPortal(
     <div
       ref={toolbarRef}
-      data-no-dnd="true" // Keep this
+      data-no-dnd="true" // Keep for compatibility if needed
       className={clsx(
-        "absolute z-50 p-1 bg-white rounded-md shadow-lg border border-gray-200 flex items-center gap-1",
-        'select-none'
+        "absolute z-[100] p-1 bg-white rounded-md shadow-lg border border-gray-200 flex items-center gap-1", // Use higher z-index
+        'select-none' // Prevent text selection of the toolbar itself
       )}
       style={{
         top: `${position.top}px`,
-        // --- Revert to using 'left' property ---
-        left: `${position.left}px`,
-        // right: undefined, // Ensure right is not used
-        // ---
-        // visibility: 'visible', // Visibility handled by conditional render
+        left: `${position.left}px`, // Using left positioning
+        visibility: 'visible', // Visibility is now controlled by the conditional render above
       }}
-      onMouseDown={handleMouseDown}
+      onMouseDown={handleMouseDown} // Prevent deselect on click
     >
-      <button
-        type="button"
-        onClick={handleButtonClick}
-        title={buttonText}
-        disabled={!isTextSelected}
-        className={clsx(
-          'flex items-center gap-1 px-2 py-1 text-xs font-medium rounded focus:outline-none focus:ring-1 focus:ring-emerald-500',
-          buttonClass,
-          !isTextSelected && 'opacity-50 cursor-not-allowed',
-          'select-none'
+        {/* --- Add Highlight Button --- */}
+        {/* Always show this button if text is selected, disable if not */}
+        <button
+            type="button"
+            onClick={handleAddClick}
+            title="Highlight Selection"
+            disabled={!isTextSelected} // Disable if no text is selected
+            className={clsx(
+              'flex items-center gap-1 px-2 py-1 text-xs font-medium rounded focus:outline-none focus:ring-1 focus:ring-emerald-500',
+              'hover:bg-yellow-100 text-yellow-700', // Highlight styling
+              !isTextSelected && 'opacity-50 cursor-not-allowed', // Disabled style
+              'select-none'
+            )}
+        >
+            <Highlighter size={16} />
+            <span>Highlight</span>
+        </button>
+
+        {/* --- NEW: Remove Highlight Button --- */}
+        {/* Only render this button if highlighted text is selected */}
+        {isHighlightSelected && (
+            <button
+                type="button"
+                onClick={handleRemoveClick}
+                title="Remove Highlight from Selection"
+                className={clsx(
+                    'flex items-center gap-1 px-2 py-1 text-xs font-medium rounded focus:outline-none focus:ring-1 focus:ring-red-500',
+                    'hover:bg-red-100 text-red-600', // Remove styling
+                    'select-none'
+                )}
+             >
+                <Trash2 size={16} />
+                <span>Remove</span>
+            </button>
         )}
-      >
-        {buttonIcon}
-        <span>{buttonText}</span>
-      </button>
+        {/* --- END NEW BUTTON --- */}
+
     </div>,
     document.body
   );
 }
 
-// PropTypes reverted to expect left
 HighlightToolbar.propTypes = {
-  editor: PropTypes.object,
-  showToolbar: PropTypes.bool.isRequired,
+  editor: PropTypes.object, // Lexical editor instance (optional)
   position: PropTypes.shape({
     top: PropTypes.number,
-    // Expect left, right is optional/ignored
-    left: PropTypes.number,
-    right: PropTypes.number,
+    left: PropTypes.number, // Expect left positioning
   }),
   isTextSelected: PropTypes.bool.isRequired,
+  // --- Add PropTypes for new props ---
+  isHighlightSelected: PropTypes.bool.isRequired,
   onHighlight: PropTypes.func.isRequired,
+  onRemoveHighlight: PropTypes.func.isRequired,
+  // --- End ---
 };
 
-// DefaultProps reverted
 HighlightToolbar.defaultProps = {
-    position: { top: 0, left: 0 }, // Default back to left: 0
+    position: null, // Default position to null
     editor: null,
+    // --- Add defaults ---
+    isHighlightSelected: false,
+    // --- End ---
 };

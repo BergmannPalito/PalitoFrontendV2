@@ -9,7 +9,8 @@ import {
     $isRangeSelection,
     COMMAND_PRIORITY_LOW,
     SELECTION_CHANGE_COMMAND,
-    $setSelection
+    $setSelection,
+    $isTextNode,
 } from 'lexical';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -21,16 +22,15 @@ import { mergeRegister } from '@lexical/utils';
 import { useHighlightContext } from '../../context/HighlightContext';
 import {
     serializeRange,
-    rangesIntersect,
-    clearAllHighlights,
-    applyHighlightsFromRanges
-} from '../../utils/highlightUtils'; // Adjust path if needed
+    deserializeRange,
+    rangesIntersect, // Use the restored utility
+    applyInitialHighlights,
+} from '../../utils/highlightUtils'; // Updated imports
 
 // Components
-import HighlightToolbar from './HighlightToolbar'; // Adjust path if needed
-import InitialContentPlugin from './InitialContentPlugin'; // Adjust path if needed
+import HighlightToolbar from './HighlightToolbar';
+import InitialContentPlugin from './InitialContentPlugin';
 
-// This is the core component rendering the editor and handling interactions
 export default function LexicalEditorCore({ tabId, paragraphs }) {
     const [editor] = useLexicalComposerContext();
     const editorInnerDivRef = useRef(null);
@@ -38,163 +38,209 @@ export default function LexicalEditorCore({ tabId, paragraphs }) {
     const [showToolbar, setShowToolbar] = useState(false);
     const [toolbarPosition, setToolbarPosition] = useState({ top: 0, left: 0 });
     const [isTextSelected, setIsTextSelected] = useState(false);
+    const [isHighlightedTextSelected, setIsHighlightedTextSelected] = useState(false);
 
-    // --- DEBUG: Mouseup listener (can be kept or removed) ---
+    // Effect for INITIAL highlight application (Unchanged)
     useEffect(() => {
-        const editorDiv = editorInnerDivRef.current;
-        if (!editorDiv || !editor) return;
-        const handleMouseUp = (event) => { if (editorDiv.contains(event.target)) { /* console.log... */ } };
-        document.addEventListener('mouseup', handleMouseUp, true);
-        return () => document.removeEventListener('mouseup', handleMouseUp, true);
-    }, [editor]);
-    // --- END DEBUG ---
+        if (!editor || !tabId) return;
+        const initialHighlights = highlightsByTab[tabId] || [];
+        if (initialHighlights.length > 0) {
+            console.log(`[Effect InitialApply] Tab ${tabId} - Applying ${initialHighlights.length} initial highlights.`);
+            editor.update(() => {
+                applyInitialHighlights(initialHighlights);
+            }, { tag: `InitialApply-${tabId}` });
+        } else {
+             console.log(`[Effect InitialApply] Tab ${tabId} - No initial highlights in context.`);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editor, tabId]);
 
-    // Effect to apply highlights
-    useEffect(() => {
-        if (!editor || !tabId) { if(editor) { editor.update(clearAllHighlights, { tag: 'ClearHighlightsOnNoTab' }); } return; }
-        const highlightsToApply = highlightsByTab[tabId] || [];
-        editor.update(() => { clearAllHighlights(); applyHighlightsFromRanges(highlightsToApply); }, { tag: 'ApplyHighlightsOnTabChange' });
-    }, [editor, tabId]); // Keep dependencies simple
-
-    // Toolbar update logic
+    // Toolbar update logic (Unchanged)
     const updateToolbar = useCallback(() => {
-        if (!editor || !editorInnerDivRef.current) { setShowToolbar(false); return; }
-        const selection = $getSelection();
-        const nativeSelection = window.getSelection();
-        const hasActiveSelection = $isRangeSelection(selection) && !selection.isCollapsed();
-        setIsTextSelected(hasActiveSelection);
-        if (hasActiveSelection && nativeSelection?.rangeCount > 0) {
-            const domRange = nativeSelection.getRangeAt(0);
-            if (!editorInnerDivRef.current.contains(domRange.commonAncestorContainer)) { setShowToolbar(false); return; }
-            const rect = domRange.getBoundingClientRect();
-            if (rect.width > 0 || rect.height > 0) {
-                const horizontalOffset = 8, estimatedToolbarHeight = 30, scrollX = window.scrollX, scrollY = window.scrollY;
-                const absoluteLeft = rect.right + scrollX + horizontalOffset;
-                const absoluteTop = rect.top + scrollY + (rect.height / 2) - (estimatedToolbarHeight / 2);
-                if (!isNaN(absoluteTop) && !isNaN(absoluteLeft)) { setToolbarPosition({ top: absoluteTop, left: absoluteLeft }); setShowToolbar(true); } else { setShowToolbar(false); }
+        // ... (keep existing logic)
+        if (!editor || !editorInnerDivRef.current) {
+            setShowToolbar(false);
+            return;
+        }
+        editor.getEditorState().read(() => {
+            const selection = $getSelection();
+            const nativeSelection = window.getSelection();
+            const hasActiveRangeSelection = $isRangeSelection(selection) && !selection.isCollapsed();
+            setIsTextSelected(hasActiveRangeSelection);
+            let highlightSelected = false;
+            if (hasActiveRangeSelection) {
+                const nodes = selection.getNodes();
+                for (const node of nodes) {
+                    if ($isTextNode(node) && node.getLatest().hasFormat('highlight')) {
+                        highlightSelected = true;
+                        break;
+                    }
+                }
+            }
+            setIsHighlightedTextSelected(highlightSelected);
+            if (hasActiveRangeSelection && nativeSelection?.rangeCount > 0) {
+                const domRange = nativeSelection.getRangeAt(0);
+                 if (!editorInnerDivRef.current || !editorInnerDivRef.current.contains(domRange.commonAncestorContainer)) {
+                     setShowToolbar(false); return;
+                 }
+                const rect = domRange.getBoundingClientRect();
+                if (rect.width > 0 || rect.height > 0) {
+                    const horizontalOffset = 8, estimatedToolbarHeight = 30, scrollX = window.scrollX, scrollY = window.scrollY;
+                    const viewportTop = rect.top + (rect.height / 2) - (estimatedToolbarHeight / 2);
+                    const viewportLeft = rect.right + horizontalOffset;
+                    const absoluteTop = viewportTop + scrollY;
+                    const absoluteLeft = viewportLeft + scrollX;
+                    if (!isNaN(absoluteTop) && !isNaN(absoluteLeft)) {
+                        setToolbarPosition({ top: absoluteTop, left: absoluteLeft });
+                        setShowToolbar(true);
+                    } else { setShowToolbar(false); }
+                } else { setShowToolbar(false); }
             } else { setShowToolbar(false); }
-        } else { setShowToolbar(false); }
+        });
     }, [editor]);
 
-    // Listeners for toolbar update
+    // Listeners for toolbar update (Unchanged)
     useEffect(() => {
         if (!editor) return;
-        const update = () => editor.getEditorState().read(updateToolbar);
-        return mergeRegister(
-            editor.registerCommand(SELECTION_CHANGE_COMMAND, () => { update(); return false; }, COMMAND_PRIORITY_LOW),
-            editor.registerUpdateListener(({ editorState }) => editorState.read(update))
-        );
+        const listeners = [
+            editor.registerCommand(SELECTION_CHANGE_COMMAND, () => { updateToolbar(); return false; }, COMMAND_PRIORITY_LOW),
+            editor.registerUpdateListener(({ editorState }) => { editorState.read(updateToolbar); })
+        ];
+        return () => { listeners.forEach(unregister => unregister()); };
     }, [editor, updateToolbar]);
 
-    // Highlight handler
+    // Highlight handler (Unchanged)
     const handleHighlight = useCallback(() => {
+        // ... (keep existing logic)
         if (!editor || !tabId) return;
-        console.log('[handleHighlight] Initiated.');
-
         editor.update(() => {
-            console.log('[handleHighlight Update] Inside editor.update.');
             const selection = $getSelection();
-            console.log('[handleHighlight Update] Selection before format:', selection);
             if ($isRangeSelection(selection) && !selection.isCollapsed()) {
                 const serializedRange = serializeRange(selection);
-                if (!serializedRange) { console.error("Failed to serialize range."); return; }
+                if (!serializedRange) { console.error(`[handleHighlight ${tabId}] Failed to serialize range.`); return; }
                 selection.formatText('highlight');
-                console.log('[handleHighlight Update] Text formatted.');
                 addHighlight(tabId, serializedRange);
-                console.log('[handleHighlight Update] About to clear selection.');
-                $setSelection(null); // Clear Lexical selection
-                const selectionAfterClear = $getSelection();
-                console.log('[handleHighlight Update] Selection after $setSelection(null):', selectionAfterClear);
-                console.log("[Action] handleHighlight: Applied, updated context, and cleared selection.");
-            } else {
-                console.log('[handleHighlight Update] No range selection or collapsed.');
+                $setSelection(null);
             }
         }, {
             tag: 'HandleHighlight',
             onUpdate: () => {
-                console.log("[onUpdate] Starting after highlight update.");
-                setShowToolbar(false); // Hide toolbar first
-                console.log("[onUpdate] Toolbar hidden.");
-
-                // --- FIX: Clear NATIVE browser selection AFTER Lexical update ---
-                try {
-                    const nativeSelection = window.getSelection();
-                    if (nativeSelection) {
-                        // Check if there's still a selection range visible to the browser
-                        if (nativeSelection.rangeCount > 0 && nativeSelection.toString().length > 0) {
-                            console.log("[onUpdate] Native selection detected, attempting removeAllRanges(). Length:", nativeSelection.toString().length);
-                            nativeSelection.removeAllRanges(); // Force clear the browser's selection
-                             console.log("[onUpdate] Cleared native browser selection ranges. Range count now:", window.getSelection()?.rangeCount);
-                        } else {
-                            console.log("[onUpdate] No significant native selection detected to clear.");
-                        }
-                    } else {
-                         console.log("[onUpdate] window.getSelection() returned null.");
-                    }
-                } catch (error) {
-                    console.error("[onUpdate] Error clearing native selection:", error);
-                }
-                // --- END FIX ---
+                try { window.getSelection()?.removeAllRanges(); } catch (error) { console.error(`[handleHighlight onUpdate] Error clearing native selection:`, error); }
+                setShowToolbar(false);
             }
         });
-
     }, [editor, tabId, addHighlight]);
 
-    // Remove highlight handler (similar native selection clear)
+    // --- MODIFIED: Remove Highlight handler (Use serialized region for intersect check) ---
     const handleRemoveHighlight = useCallback(() => {
-       if (!editor || !tabId) return;
-       console.log('[handleRemoveHighlight] Initiated.');
-       const highlightsBeforeUpdate = highlightsByTab[tabId] || [];
-       let intersectingIds = [];
+         console.log(`[handleRemoveHighlight ${tabId}] Initiated.`);
+        if (!editor || !tabId || !highlightsByTab[tabId]) {
+             console.warn(`[handleRemoveHighlight ${tabId}] Skipping - invalid state.`);
+             return;
+        }
+        const currentStoredHighlights = highlightsByTab[tabId] || [];
+        let idsToRemove = [];
+        // Store serialized region *outside* update if possible, or right at start
+        let serializedRemovalRegion = null;
 
-       editor.update(() => {
-           // ... (logic to find intersectingIds and remove format) ...
-            $setSelection(null); // Clear Lexical selection
-       }, {
-            tag: 'HandleRemoveHighlight',
-             onUpdate: () => {
-                console.log("[onUpdate] Starting after remove highlight update.");
-                setShowToolbar(false);
-                 console.log("[onUpdate] Toolbar hidden.");
-                // --- FIX: Clear NATIVE browser selection AFTER Lexical update ---
-                try {
-                    const nativeSelection = window.getSelection();
-                    if (nativeSelection) {
-                         if (nativeSelection.rangeCount > 0 && nativeSelection.toString().length > 0) {
-                             console.log("[onUpdate] Native selection detected, attempting removeAllRanges(). Length:", nativeSelection.toString().length);
-                             nativeSelection.removeAllRanges();
-                              console.log("[onUpdate] Cleared native browser selection ranges. Range count now:", window.getSelection()?.rangeCount);
-                         } else {
-                             console.log("[onUpdate] No significant native selection detected to clear.");
+        editor.update(() => {
+            // Get the initial user selection
+            const initialSelection = $getSelection();
+            console.log(`[handleRemoveHighlight ${tabId}] Initial user selection:`, initialSelection);
+
+            if ($isRangeSelection(initialSelection) && !initialSelection.isCollapsed()) {
+                 console.log(`[handleRemoveHighlight ${tabId}] Initial selection is valid RangeSelection.`);
+
+                 // --- FIX: Serialize the initial selection region ---
+                 serializedRemovalRegion = serializeRange(initialSelection);
+                 if (!serializedRemovalRegion) {
+                     console.error(`[handleRemoveHighlight ${tabId}] Failed to serialize the initial selection region! Aborting removal logic.`);
+                     return; // Exit update if serialization fails
+                 }
+                 console.log(`[handleRemoveHighlight ${tabId}] Serialized initial removal region:`, serializedRemovalRegion);
+                 // --- End Fix ---
+
+                 // Step 1: Explicitly remove visual format from selected nodes
+                 const selectedNodes = initialSelection.getNodes();
+                 let formatRemoved = false;
+                 console.log(`[handleRemoveHighlight ${tabId}] Iterating ${selectedNodes.length} nodes in initial selection to remove format.`);
+                 selectedNodes.forEach(node => {
+                     const latestNode = node.getLatest();
+                     if ($isTextNode(latestNode) && latestNode.hasFormat('highlight')) {
+                         try {
+                             const writableNode = latestNode.getWritable();
+                             writableNode.setFormat(0); // Clear format
+                             formatRemoved = true;
+                         } catch (error) {
+                              console.warn(`[handleRemoveHighlight ${tabId}] Error removing format from node ${latestNode.getKey()}:`, error);
                          }
-                    } else {
-                          console.log("[onUpdate] window.getSelection() returned null.");
-                    }
-                } catch (error) {
-                    console.error("[onUpdate] Error clearing native selection:", error);
-                }
-                // --- END FIX ---
-            }
-       });
-    }, [editor, tabId, removeHighlightsByIds, highlightsByTab]);
+                     }
+                 });
+                 console.log(`[handleRemoveHighlight ${tabId}] Finished iterating nodes. Format removed visually: ${formatRemoved}`);
 
-    // Render the editor core
+                 // Step 2: Find which stored highlights intersect with the *original serialized region*
+                 console.log(`[handleRemoveHighlight ${tabId}] Checking intersection against ${currentStoredHighlights.length} stored highlights using the *serialized* removal region.`);
+                 currentStoredHighlights.forEach((storedHighlight, index) => {
+                     // --- FIX: Use rangesIntersect utility function ---
+                     if (rangesIntersect(storedHighlight, serializedRemovalRegion)) {
+                          console.log(`[handleRemoveHighlight ${tabId} #${index}] Serialized removal region INTERSECTS with stored ID ${storedHighlight.id}. Adding to remove list.`);
+                          idsToRemove.push(storedHighlight.id);
+                     } else {
+                          // console.log(`[handleRemoveHighlight ${tabId} #${index}] No intersection with stored ID ${storedHighlight.id}.`); // Reduce noise
+                     }
+                     // --- End Fix ---
+                 });
+
+                 // Step 3: Clear editor selection AFTER processing
+                 $setSelection(null);
+                 console.log(`[handleRemoveHighlight ${tabId}] Cleared editor selection.`);
+            } else {
+                 console.warn(`[handleRemoveHighlight ${tabId}] Skipping - initial selection not valid or collapsed.`);
+            }
+        }, {
+            tag: 'HandleRemoveHighlight',
+            onUpdate: () => {
+                 // Step 4: Update context AFTER the main update logic
+                 console.log(`[handleRemoveHighlight ${tabId} onUpdate] IDs to remove from context:`, idsToRemove);
+                if (idsToRemove.length > 0) {
+                    const uniqueIdsToRemove = [...new Set(idsToRemove)];
+                    if(uniqueIdsToRemove.length !== idsToRemove.length) {
+                        console.warn(`[handleRemoveHighlight ${tabId} onUpdate] Duplicate IDs found in remove list.`);
+                    }
+                    removeHighlightsByIds(tabId, uniqueIdsToRemove);
+                    console.log(`[handleRemoveHighlight ${tabId} onUpdate] Dispatched removeHighlightsByIds with unique IDs:`, uniqueIdsToRemove);
+                } else {
+                      console.log(`[handleRemoveHighlight ${tabId} onUpdate] No stored highlights intersected with the original removal region. No context update needed.`);
+                }
+                 console.log(`[handleRemoveHighlight ${tabId} onUpdate] Clearing native selection and hiding toolbar.`);
+                try { window.getSelection()?.removeAllRanges(); } catch (error) { console.error(`[handleRemoveHighlight ${tabId} onUpdate] Error clearing native selection:`, error); }
+                 setShowToolbar(false);
+            }
+        });
+    }, [editor, tabId, highlightsByTab, removeHighlightsByIds]);
+    // --- END MODIFIED ---
+
+    // Render the editor core (Unchanged)
     return (
         <div ref={editorInnerDivRef} className="relative prose max-w-none p-4 lg:p-6 h-full" data-testid="lexical-editor-core" key={`editor-core-${tabId || 'no-tab'}`}>
             <RichTextPlugin
                 contentEditable={<ContentEditable className="outline-none focus:outline-none h-full caret-transparent" aria-label="Patent Description"/>}
                 placeholder={null}
-                ErrorBoundary={() => null}
+                ErrorBoundary={(error) => { console.error("Lexical RichTextPlugin ErrorBoundary:", error); return <div>Error rendering content.</div>; }}
             />
             <HistoryPlugin />
             <InitialContentPlugin paragraphs={paragraphs} />
-            <HighlightToolbar
-               editor={editor}
-               showToolbar={showToolbar}
-               position={toolbarPosition}
-               isTextSelected={isTextSelected}
-               onHighlight={handleHighlight}
-            />
+             {showToolbar && createPortal(
+                <HighlightToolbar
+                    editor={editor}
+                    position={toolbarPosition}
+                    isTextSelected={isTextSelected}
+                    isHighlightSelected={isHighlightedTextSelected}
+                    onHighlight={handleHighlight}
+                    onRemoveHighlight={handleRemoveHighlight}
+                />,
+                document.body
+            )}
         </div>
     );
 }
