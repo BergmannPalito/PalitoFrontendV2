@@ -1,136 +1,219 @@
-// src/features/patents/utils/highlightUtils.js
-import { $getNodeByKey, $createRangeSelection, $isTextNode, $isRangeSelection } from 'lexical';
-import { nanoid } from 'nanoid';
+/* eslint-disable no-console */
+import {
+    $getNodeByKey,
+    $createRangeSelection,
+    $isTextNode,
+    $isRangeSelection,
+  } from 'lexical';
+  import { createDOMRange } from '@lexical/selection';
 
-// HighlightRange typedef (unchanged)
-/**
- * @typedef {object} HighlightRange
- * @property {string} id - Unique ID for the highlight.
- * @property {string} anchorKey - Lexical node key for the selection anchor.
- * @property {number} anchorOffset - Offset within the anchor node.
- * @property {string} focusKey - Lexical node key for the selection focus.
- * @property {number} focusOffset - Offset within the focus node.
- */
 
-// --- serializeRange --- (Unchanged)
-export function serializeRange(selection) {
-    // console.log("[Serialize] Attempting to serialize selection:", selection); // Reduce noise
-    if (!$isRangeSelection(selection)) {
-        console.warn("[Serialize] Input is not a RangeSelection:", selection);
-        return null;
+
+/* -------------------------------------------------------------- */
+/*  Runtime helper: extract {editor, a, b} from any call pattern   */
+/* -------------------------------------------------------------- */
+function parseArgs(fnName, args) {
+      if (args.length === 3) {
+        const [editor, a, b] = args;
+        return { editor, a, b };
+      }
+      if (args.length === 2) {
+        console.warn(
+          `[highlightUtils] ${fnName} called without 'editor' — ` +
+          'please update the call site to pass it in.  Falling back to no‑op.',
+        );
+        return { editor: null, a: args[0], b: args[1] };
+      }
+      throw new Error(`[highlightUtils] ${fnName} received wrong arg count`);
     }
-    if (!selection.anchor || !selection.focus) {
-         console.warn("[Serialize] Selection missing anchor or focus.");
-        return null;
-    }
-    const anchorNode = selection.anchor.getNode();
-    const focusNode = selection.focus.getNode();
-
-    if (!anchorNode || !focusNode) {
-        console.warn("[Serialize] Attempted to serialize range with non-existent anchor/focus node.");
-        return null;
-    }
-
-    const serialized = {
-        id: nanoid(8), // Generate a temporary ID for comparison if needed, or use null
-        anchorKey: selection.anchor.key,
-        anchorOffset: selection.anchor.offset,
-        focusKey: selection.focus.key,
-        focusOffset: selection.focus.offset,
+  /* -------------------------------------------------------------------------- */
+  /*  Point helpers                                                             */
+  /* -------------------------------------------------------------------------- */
+  
+  /**
+   * Compare two (key, offset) points in DOM order.
+   * Returns -1 if A < B, 0 if equal, 1 if A > B.
+   */
+  export function comparePoints(
+    editor,
+    { key: keyA, offset: offA },
+    { key: keyB, offset: offB },
+  ) {
+    if (keyA === keyB && offA === offB) return 0;
+    const nodeA = $getNodeByKey(keyA);
+    const nodeB = $getNodeByKey(keyB);
+    if (!nodeA || !nodeB) return 0;
+  
+    const rangeA = createDOMRange(editor, nodeA, offA, nodeA, offA);
+    const rangeB = createDOMRange(editor, nodeB, offB, nodeB, offB);
+    if (!rangeA || !rangeB) return 0;
+  
+    return rangeA.compareBoundaryPoints(Range.START_TO_START, rangeB);
+  }
+  
+  /** normalises a serialized range => {startKey, startOffset, endKey, endOffset} */
+  export function normaliseRange(editor, r) {
+    if (!r) return null;
+    return comparePoints(
+      editor,
+      { key: r.anchorKey, offset: r.anchorOffset },
+      { key: r.focusKey, offset: r.focusOffset },
+    ) <= 0
+      ? {
+          startKey: r.anchorKey,
+          startOffset: r.anchorOffset,
+          endKey: r.focusKey,
+          endOffset: r.focusOffset,
+        }
+      : {
+          startKey: r.focusKey,
+          startOffset: r.focusOffset,
+          endKey: r.anchorKey,
+          endOffset: r.anchorOffset,
+        };
+  }
+  
+  /* -------------------------------------------------------------------------- */
+  /*  Basic serialise / deserialise                                             */
+  /* -------------------------------------------------------------------------- */
+  
+  export function serializeRange(selection, color = 'yellow') {
+    if (!$isRangeSelection(selection) || selection.isCollapsed()) return null;
+    return {
+      anchorKey: selection.anchor.key,
+      anchorOffset: selection.anchor.offset,
+      focusKey: selection.focus.key,
+      focusOffset: selection.focus.offset,
+      color,
     };
-    // console.log("[Serialize] Successfully serialized:", serialized); // Reduce noise
-    return serialized;
-}
-// --- END serializeRange ---
-
-// --- deserializeRange (No clamping) --- (Unchanged)
-export function deserializeRange(serializedRange) {
-    // console.log("[Deserialize] Attempting to deserialize range:", serializedRange); // Reduce noise
-    if (!serializedRange || !serializedRange.anchorKey || !serializedRange.focusKey) {
-        console.warn("[Deserialize] Invalid serializedRange object provided.");
-        return null;
-    }
+  }
+  
+  export function deserializeRange(serialized) {
+    if (!serialized) return null;
     try {
-        const anchorNode = $getNodeByKey(serializedRange.anchorKey);
-        const focusNode = $getNodeByKey(serializedRange.focusKey);
-
-        if (anchorNode && focusNode) {
-            const anchorIsText = $isTextNode(anchorNode);
-            const focusIsText = $isTextNode(focusNode);
-            const anchorType = anchorIsText ? 'text' : 'element';
-            const focusType = focusIsText ? 'text' : 'element';
-
-            const rangeSelection = $createRangeSelection();
-
-            const anchorOffsetToSet = serializedRange.anchorOffset;
-            const focusOffsetToSet = serializedRange.focusOffset;
-            // console.log(`[Deserialize] Using original offsets: Anchor=${anchorOffsetToSet}, Focus=${focusOffsetToSet}`); // Reduce noise
-
-            rangeSelection.anchor.set(serializedRange.anchorKey, anchorOffsetToSet, anchorType);
-            rangeSelection.focus.set(serializedRange.focusKey, focusOffsetToSet, focusType);
-
-            // console.log(`[Deserialize] Selection STATE JUST BEFORE RETURN: Anchor(key=${rangeSelection.anchor.key}, off=${rangeSelection.anchor.offset}), Focus(key=${rangeSelection.focus.key}, off=${rangeSelection.focus.offset})`); // Reduce noise
-
-            if (!$isRangeSelection(rangeSelection)) {
-                 console.error("[Deserialize] Failed to create a valid RangeSelection object.", rangeSelection);
-                 return null;
-            }
-            return rangeSelection;
-
-        } else {
-            // console.warn(`[Deserialize] Skipping highlight because node not found: AnchorKey=${serializedRange.anchorKey}, FocusKey=${serializedRange.focusKey}`); // Reduce noise
-            return null;
-        }
-    } catch (error) {
-        console.error("[Deserialize] Error deserializing range:", { serializedRange, error });
+      const { anchorKey, anchorOffset, focusKey, focusOffset } = serialized;
+      const sel = $createRangeSelection();
+      sel.anchor.set(anchorKey, anchorOffset, 'text');
+      sel.focus.set(focusKey, focusOffset, 'text');
+      return sel;
+    } catch {
+      return null;
     }
-    return null;
-}
-// --- END deserializeRange ---
-
-// --- RESTORED: rangesIntersect ---
-// Compares two serialized range objects by deserializing them
-export function rangesIntersect(rangeA, rangeB) {
-    // console.log("[Intersect] Checking intersection between:", rangeA, "AND", rangeB); // Reduce noise
-    if (!rangeA || !rangeB) return false;
-    try {
-        // Deserialize both input ranges (which are serialized objects)
-        const selectionA = deserializeRange(rangeA);
-        const selectionB = deserializeRange(rangeB);
-
-        if (!$isRangeSelection(selectionA)) {
-            // console.warn("[Intersect] Deserialized selectionA is invalid."); // Reduce noise
-             return false;
-        }
-        if (!$isRangeSelection(selectionB)) {
-            // console.warn("[Intersect] Deserialized selectionB is invalid."); // Reduce noise
-            return false;
-        }
-
-        // Now perform the intersection check on the two valid RangeSelection objects
-        try {
-             // Check if methods exist before calling
-             if (typeof selectionA.intersects !== 'function' || typeof selectionB.intersects !== 'function') {
-                  console.error("[Intersect] Deserialized selection missing intersects method!", { selectionA, selectionB });
-                  return false;
-             }
-             // Perform check
-             const intersects = selectionA.is(selectionB) || selectionA.intersects(selectionB);
-             // console.log(`[Intersect] Result: ${intersects}`); // Reduce noise
-             return intersects;
-        } catch (methodError) {
-             console.error("[Intersect] Error calling .is() or .intersects()", { error: methodError });
-             return false;
-        }
-    } catch (e) {
-        console.error("[Intersect] Outer error during deserialization or check", { error: e });
+  }
+  
+  /* -------------------------------------------------------------------------- */
+  /*  Intersection / containment helpers                                        */
+  /* -------------------------------------------------------------------------- */
+  
+  export function rangesIntersect(...rawArgs) {
+    const { editor, a, b } = parseArgs('rangesIntersect', rawArgs);
+    if (!editor) return false;
+    const A = normaliseRange(editor, a);                  // <- bail if no editor
+    const B = normaliseRange(editor, b);
+    if (!A || !B) return false;
+  
+    return (
+      comparePoints(editor, { key: A.endKey, offset: A.endOffset }, { key: B.startKey, offset: B.startOffset }) >=
+        0 &&
+      comparePoints(editor, { key: B.endKey, offset: B.endOffset }, { key: A.startKey, offset: A.startOffset }) >=
+        0
+    );
+  }
+  
+  export function containsEntireHighlight(...rawArgs) {
+    const { editor, a: container, b: test } = parseArgs('containsEntireHighlight', rawArgs);
+    if (!editor) return false;
+  
+    const C = normaliseRange(editor, container);
+    const T = normaliseRange(editor, test);
+    if (!C || !T) return false;
+  
+    return (
+      comparePoints(editor, { key: C.startKey, offset: C.startOffset }, { key: T.startKey, offset: T.startOffset }) <= 0 &&
+      comparePoints(editor, { key: C.endKey, offset: C.endOffset }, { key: T.endKey, offset: T.endOffset }) >= 0
+    );
+  }
+  
+  /* -------------------------------------------------------------------------- */
+  /*  Split A by removing overlap with B                                        */
+  /* -------------------------------------------------------------------------- */
+  
+  export function splitHighlight(...rawArgs) {
+    const { editor, a: original, b: removal } = parseArgs('splitHighlight', rawArgs);
+    if (!editor) return [];
+  
+    const orig = normaliseRange(editor, original);
+    const cut  = normaliseRange(editor, removal);
+    if (!orig || !cut || !rangesIntersect(editor, orig, cut)) return [];
+  
+    const segs = [];
+  
+    // before‑segment
+    if (
+      comparePoints(editor, { key: cut.startKey, offset: cut.startOffset }, { key: orig.startKey, offset: orig.startOffset }) > 0
+    ) {
+      segs.push({
+        anchorKey: orig.startKey,
+        anchorOffset: orig.startOffset,
+        focusKey: cut.startKey,
+        focusOffset: cut.startOffset,
+        color: original.color,
+      });
     }
-    return false;
-}
-// --- END RESTORED ---
+  
+    // after‑segment
+    if (
+      comparePoints(editor, { key: orig.endKey, offset: orig.endOffset }, { key: cut.endKey, offset: cut.endOffset }) > 0
+    ) {
+      segs.push({
+        anchorKey: cut.endKey,
+        anchorOffset: cut.endOffset,
+        focusKey: orig.endKey,
+        focusOffset: orig.endOffset,
+        color: original.color,
+      });
+    }
+  
+    return segs;
+  }
+  
 
+  export function mergeRanges(...rawArgs) {
+    const { editor, a: A, b: B } = parseArgs('mergeRanges', rawArgs);
+    if (!editor) return null;
+  
+    if (A.color !== B.color) return null;
+  
+    const a = normaliseRange(editor, A);
+    const b = normaliseRange(editor, B);
+    if (!a || !b) return null;
+  
+    const touchOrOverlap =
+      comparePoints(editor, { key: b.startKey, offset: b.startOffset }, { key: a.endKey, offset: a.endOffset }) <= 0 &&
+      comparePoints(editor, { key: a.startKey, offset: a.startOffset }, { key: b.endKey, offset: b.endOffset }) <= 0;
+  
+    if (!touchOrOverlap) return null;
+  
+    const startEarlier =
+      comparePoints(editor, { key: a.startKey, offset: a.startOffset }, { key: b.startKey, offset: b.startOffset }) <= 0
+        ? a
+        : b;
+  
+    const endLater =
+      comparePoints(editor, { key: a.endKey, offset: a.endOffset }, { key: b.endKey, offset: b.endOffset }) >= 0
+        ? a
+        : b;
+  
+    return {
+      anchorKey: startEarlier.startKey,
+      anchorOffset: startEarlier.startOffset,
+      focusKey: endLater.endKey,
+      focusOffset: endLater.endOffset,
+      color: A.color, // same as B.color
+    };
+  }
 
-// --- applyInitialHighlights --- (Unchanged)
+// --- applyInitialHighlights --- (Keep Logging)
 export function applyInitialHighlights(highlightsArray) {
     console.log("[InitialApply] Applying initial highlights from array:", highlightsArray);
     if (!Array.isArray(highlightsArray)) {
@@ -139,27 +222,41 @@ export function applyInitialHighlights(highlightsArray) {
     }
 
     highlightsArray.forEach((savedRange, index) => {
-        const selection = deserializeRange(savedRange);
-        if (
-            selection &&
-            $isRangeSelection(selection) &&
-            (selection.anchor.key !== selection.focus.key || selection.anchor.offset !== selection.focus.offset)
-           )
-        {
+        console.log(`[InitialApply #${index}] Processing savedRange:`, JSON.stringify(savedRange));
+        if (!savedRange || typeof savedRange.id !== 'string') {
+            console.warn(`[InitialApply #${index}] Skipping invalid highlight entry:`, savedRange);
+            return;
+        }
+        const selection = deserializeRange(savedRange); // Calls the robust version
+        console.log(`[InitialApply #${index}] Deserialized selection result:`, selection);
+
+        if (selection && $isRangeSelection(selection) && !selection.isCollapsed()) {
            try {
-                selection.formatText('highlight');
+                const nodes = selection.getNodes();
+                let needsFormat = false;
+                for (const node of nodes) {
+                     // Ensure node is still valid and check latest state
+                    const latestNode = node?.getLatest ? node.getLatest() : null;
+                    if (latestNode && $isTextNode(latestNode) && !latestNode.hasFormat('highlight')) {
+                        needsFormat = true;
+                        break;
+                    }
+                }
+                if (needsFormat) {
+                    console.log(`[InitialApply #${index}] Formatting text for range ${savedRange.id}.`);
+                    selection.formatText('highlight');
+                } else {
+                     console.log(`[InitialApply #${index}] Text for range ${savedRange.id} already formatted or no suitable TextNodes found. Skipping formatText.`);
+                }
            } catch(error) {
-                console.warn(`[InitialApply #${index}] Error applying formatText for range ${savedRange.id}. Content may have changed.`, { error, savedRange });
+                console.warn(`[InitialApply #${index}] Error applying formatText for range ${savedRange.id}.`, { error, savedRange });
            }
         } else {
-             const reason = !selection ? "selection is null" :
+             const reason = !selection ? "selection deserialize failed" :
                            !$isRangeSelection(selection) ? "not a RangeSelection" :
-                           "selection appears collapsed (anchor/focus identical)";
-             console.warn(`[InitialApply #${index}] Skipped - ${reason}.`);
+                           selection.isCollapsed() ? "selection collapsed" : "unknown";
+             console.warn(`[InitialApply #${index}] Skipped applying highlight ${savedRange.id} - ${reason}.`);
         }
     });
      console.log("[InitialApply] Finished applying initial highlights.");
 }
-// --- END applyInitialHighlights ---
-
-// --- REMOVED: clearAllHighlights ---
