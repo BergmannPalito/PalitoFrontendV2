@@ -51,7 +51,7 @@ function mergeAndReconcileHighlights(editor, current, incoming) {
 /*  main hook                                                   */
 /* ------------------------------------------------------------ */
 
-export function useHighlightHandler(tabId, defaultColor = 'yellow') {
+export function useHighlightHandler(tabId, currentColor = 'yellow') {
   const [editor] = useLexicalComposerContext();
   const {
     highlightsByTab = {},
@@ -68,7 +68,7 @@ export function useHighlightHandler(tabId, defaultColor = 'yellow') {
         const sel = $getSelection();
         if (!$isRangeSelection(sel) || sel.isCollapsed()) return;
 
-        let incoming = serializeRange(sel, defaultColor);
+        let incoming = serializeRange(sel, currentColor);
         if (!incoming) return;
         incoming.id = `hl-${nanoid(8)}`;
 
@@ -88,7 +88,7 @@ export function useHighlightHandler(tabId, defaultColor = 'yellow') {
   }, [
     editor,
     tabId,
-    defaultColor,
+    currentColor,
     highlightsByTab,
     addHighlight,
     removeHighlightsByIds,
@@ -103,7 +103,7 @@ export function useHighlightHandler(tabId, defaultColor = 'yellow') {
         const sel = $getSelection();
         if (!$isRangeSelection(sel) || sel.isCollapsed()) return;
 
-        const removal = serializeRange(sel, defaultColor);
+        const removal = serializeRange(sel, currentColor);
         if (!removal) return;
 
         const current = highlightsByTab[tabId] || [];
@@ -128,7 +128,7 @@ export function useHighlightHandler(tabId, defaultColor = 'yellow') {
   }, [
     editor,
     tabId,
-    defaultColor,
+    currentColor,
     highlightsByTab,
     addHighlight,
     removeHighlightsByIds,

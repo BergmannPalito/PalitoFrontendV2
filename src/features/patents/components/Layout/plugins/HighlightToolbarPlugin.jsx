@@ -1,61 +1,74 @@
-import React, { useCallback } from 'react';
+// features/patents/components/Layout/plugins/HighlightToolbarPlugin.jsx
+import React, { useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+
 import { useToolbar } from '../../../hooks/useToolbar';
 import { useHighlightHandler } from '../../../hooks/useHighlightHandler';
 import HighlightToolbar from '../HighlightToolbar';
+import { COLOR_LIST } from '../../../utils/highlightColorMap';
 
 export default function HighlightToolbarPlugin({ editorInnerDivRef, tabId }) {
-    const [editor] = useLexicalComposerContext();
+  const [editor] = useLexicalComposerContext();
 
-    const {
-        showToolbar,
-        toolbarPosition,
-        isTextSelected,
-        isHighlightedTextSelected,
-        // hideToolbar // We might not need hideToolbar explicitly now
-    } = useToolbar(editorInnerDivRef, tabId);
+  /* ---------- keep last‑chosen color in state (default: yellow) ---------- */
+  const [currentColor, setCurrentColor] = useState('yellow');
 
-    const { handleHighlight, handleRemoveHighlight } = useHighlightHandler(tabId);
+  /* ---------- selection / positioning logic ---------- */
+  const {
+    showToolbar,
+    toolbarPosition,
+    isTextSelected,
+    isHighlightedTextSelected,
+  } = useToolbar(editorInnerDivRef, tabId);
 
-     // --- REMOVED requestAnimationFrame(hideToolbar) ---
-     // The toolbar should hide automatically when selection changes.
-     const onHighlight = useCallback(() => {
-         console.log("[HighlightToolbarPlugin] onHighlight triggered");
-         handleHighlight();
-         // Let selection change hide the toolbar naturally
-     }, [handleHighlight]);
+  /* ---------- highlight handlers that use the CURRENT color ---------- */
+  const { handleHighlight, handleRemoveHighlight } = useHighlightHandler(
+    tabId,
+    currentColor,
+  );
 
-     const onRemoveHighlight = useCallback(() => {
-         console.log("[HighlightToolbarPlugin] onRemoveHighlight triggered");
-         handleRemoveHighlight();
-         // Let selection change hide the toolbar naturally
-     }, [handleRemoveHighlight]);
-     // --- END REMOVAL ---
+  /* ---------- callbacks passed down ---------- */
+  const onHighlight = useCallback(() => {
+    handleHighlight();
+  }, [handleHighlight]);
 
+  const onRemoveHighlight = useCallback(() => {
+    handleRemoveHighlight();
+  }, [handleRemoveHighlight]);
 
-    return (
-        <>
-            {showToolbar && document.body && createPortal(
-                <HighlightToolbar
-                    editor={editor}
-                    position={toolbarPosition}
-                    isTextSelected={isTextSelected}
-                    isHighlightSelected={isHighlightedTextSelected}
-                    onHighlight={onHighlight}
-                    onRemoveHighlight={onRemoveHighlight}
-                />,
-                document.body
-            )}
-        </>
-    );
+  const onColorChange = useCallback((newColor) => {
+    setCurrentColor(newColor);                // triggers re‑render immediately
+  }, []);
+
+  /* ---------- render ---------- */
+  return (
+    <>
+      {showToolbar &&
+        document.body &&
+        createPortal(
+          <HighlightToolbar
+            editor={editor}
+            position={toolbarPosition}
+            isTextSelected={isTextSelected}
+            isHighlightSelected={isHighlightedTextSelected}
+            onHighlight={onHighlight}
+            onRemoveHighlight={onRemoveHighlight}
+            currentColor={currentColor}
+            onColorChange={onColorChange}
+            palette={COLOR_LIST}
+          />,
+          document.body,
+        )}
+    </>
+  );
 }
 
 HighlightToolbarPlugin.propTypes = {
-     editorInnerDivRef: PropTypes.oneOfType([
-         PropTypes.func,
-         PropTypes.shape({ current: PropTypes.instanceOf(Element) })
-     ]).isRequired,
-    tabId: PropTypes.string,
+  editorInnerDivRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.instanceOf(Element) }),
+  ]).isRequired,
+  tabId: PropTypes.string,
 };

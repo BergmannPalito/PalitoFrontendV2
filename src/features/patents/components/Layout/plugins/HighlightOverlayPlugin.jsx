@@ -6,11 +6,11 @@ import { useDebouncedCallback } from 'use-debounce';
 
 import { useHighlightContext } from '../../../context/HighlightContext';
 import { getRectsForSavedRange } from '../../../utils/highlightOverlayHelpers.js';
+import { colorToBgClass } from '../../../utils/highlightColorMap.js';
 
 export default function HighlightOverlayPlugin({ editorInnerDivRef, tabId }) {
   const [editor] = useLexicalComposerContext();
   const { highlightsByTab = {} } = useHighlightContext() || {};
-
   const [highlightRects, setHighlightRects] = useState([]);
   const containerRectRef = useRef(null);
 
@@ -37,6 +37,7 @@ export default function HighlightOverlayPlugin({ editorInnerDivRef, tabId }) {
           left: r.left - cLeft + scrollLeft,
           width: r.width,
           height: r.height,
+          color: saved.color || 'yellow',
         });
       });
     });
@@ -46,31 +47,25 @@ export default function HighlightOverlayPlugin({ editorInnerDivRef, tabId }) {
     }
   }, 100);
 
-  /* editor state changes */
+  /* listeners stay unchanged */
   useEffect(() => {
     if (!editor) return () => {};
     const off = editor.registerUpdateListener(() => calculateHighlightRects());
     return off;
   }, [editor, calculateHighlightRects]);
 
-  /* highlight list / tab changes */
-  useEffect(() => calculateHighlightRects(),
-    [highlightsByTab, tabId, calculateHighlightRects]);
+  useEffect(() => calculateHighlightRects(), [highlightsByTab, tabId, calculateHighlightRects]);
 
-  /* scroll + resize */
   useEffect(() => {
     const container = editorInnerDivRef.current;
     if (!container) return () => {};
-
     const sync = () => {
       containerRectRef.current = container.getBoundingClientRect();
       calculateHighlightRects();
     };
-
     container.addEventListener('scroll', sync);
     window.addEventListener('resize', sync);
     sync();
-
     return () => {
       container.removeEventListener('scroll', sync);
       window.removeEventListener('resize', sync);
@@ -85,7 +80,7 @@ export default function HighlightOverlayPlugin({ editorInnerDivRef, tabId }) {
       {highlightRects.map((r) => (
         <div
           key={r.id}
-          className="absolute bg-yellow-300/40 rounded-sm pointer-events-none z-0"
+          className={`absolute ${colorToBgClass[r.color] || colorToBgClass.yellow} rounded-sm pointer-events-none z-0`}
           style={{
             top: `${r.top}px`,
             left: `${r.left}px`,
@@ -108,6 +103,4 @@ HighlightOverlayPlugin.propTypes = {
   tabId: PropTypes.string,
 };
 
-HighlightOverlayPlugin.defaultProps = {
-  tabId: null,
-};
+HighlightOverlayPlugin.defaultProps = { tabId: null };

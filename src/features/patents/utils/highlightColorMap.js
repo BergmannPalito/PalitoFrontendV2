@@ -1,0 +1,48 @@
+// central place to keep the palette in sync
+export const COLOR_LIST = [
+    'yellow',
+    'green',
+    'blue',
+    'red',
+    'orange',
+    'amber',
+    'lime',
+    'teal',
+    'cyan',
+    'sky',
+    'indigo',
+    'violet',
+    'purple',
+    'pink',
+    'rose',
+    'fuchsia',
+    'emerald',
+    'stone',
+    'gray',
+    'slate',
+  ];
+  
+  // map color‑name → Tailwind background with 40% opacity
+  export const colorToBgClass = {
+    yellow: 'bg-yellow-300/40',
+    green: 'bg-green-300/40',
+    blue: 'bg-blue-300/40',
+    red: 'bg-red-300/40',
+    orange: 'bg-orange-300/40',
+    amber: 'bg-amber-300/40',
+    lime: 'bg-lime-300/40',
+    teal: 'bg-teal-300/40',
+    cyan: 'bg-cyan-300/40',
+    sky: 'bg-sky-300/40',
+    indigo: 'bg-indigo-300/40',
+    violet: 'bg-violet-300/40',
+    purple: 'bg-purple-300/40',
+    pink: 'bg-pink-300/40',
+    rose: 'bg-rose-300/40',
+    fuchsia: 'bg-fuchsia-300/40',
+    emerald: 'bg-emerald-300/40',
+    stone: 'bg-stone-300/40',
+    gray: 'bg-gray-300/40',
+    slate: 'bg-slate-300/40',
+  };
+  
