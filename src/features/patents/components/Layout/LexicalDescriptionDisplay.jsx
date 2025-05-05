@@ -1,79 +1,58 @@
 // src/features/patents/components/Layout/LexicalDescriptionDisplay.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
-
-// Lexical Imports
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
-import { TextNode, ParagraphNode } from 'lexical'; // Import necessary CORE nodes
+import { TextNode, ParagraphNode } from 'lexical';
 
-// Local Imports
-import LexicalEditorCore from './LexicalEditorCore'; // Import the refactored core component
-import { editorTheme } from '../../config/lexicalConfig'; // Import theme configuration
-// --- REMOVE the import for the custom node ---
-// import { HighlightSpanNode } from '../../nodes/HighlightSpanNode.jsx'; // DELETE THIS LINE
-// --- End Removal ---
+import LexicalEditorCore from './LexicalEditorCore';
+import { editorTheme } from '../../config/lexicalConfig';
 
-// Simple Error Boundary Wrapper (can stay here or move to shared utils)
 function LexicalErrorBoundaryComponent(error) {
-    // Log the actual error object caught by the boundary
-    console.error("[LexicalDescriptionDisplay ErrorBoundary Caught]", error);
-    // Also log the error passed to the fallback component for clarity
-    // console.error("[Lexical Error Fallback Prop]", fallbackErrorProp); // fallbackErrorProp is the argument name
-    return <div>Lexical Error! Check console.</div>;
+  // eslint-disable-next-line no-console
+  console.error('[LexicalDescriptionDisplay ErrorBoundary]', error);
+  return <div>Lexical Error! Check console.</div>;
 }
 
-// Outer component responsible for setting up the Lexical Composer context
-export default function LexicalDescriptionDisplay({ tabId, paragraphs }) {
-    // Unique key ensures the composer remounts when the tab changes, resetting state correctly
-    const composerKey = `lexical-display-${tabId || 'no-tab'}`;
+export default function LexicalDescriptionDisplay({
+  tabId,
+  paragraphs,
+  isActive, // NEW
+}) {
+  const composerKey = `lexical-display-${tabId || 'no-tab'}`;
 
-    // Configuration for the Lexical Composer instance
-    const initialConfig = {
-        namespace: `PatentDescriptionEditor_${tabId || 'no_tab'}`,
-        theme: editorTheme, // Use imported theme
-        // Make sure the onError here is catching errors originating from Lexical itself
-        onError: (error, editor) => {
-            console.error("Lexical initialConfig onError:", error);
-            // You might want additional reporting here
-        },
-        editable: false, // The editor content is not directly editable by the user
-        editorState: null, // Initialize with null state
-        nodes: [
-            // Only include CORE nodes or other nodes you *are* using
-            TextNode,
-            ParagraphNode,
-            // --- REMOVE the custom Node from registration ---
-            // HighlightSpanNode, // DELETE THIS LINE
-            // --- End Removal ---
-        ],
-    };
+  const initialConfig = {
+    namespace: `PatentDescriptionEditor_${tabId || 'no_tab'}`,
+    theme: editorTheme,
+    onError: (error) => {
+      // eslint-disable-next-line no-console
+      console.error('Lexical initialConfig onError:', error);
+    },
+    editable: false,
+    editorState: null,
+    nodes: [TextNode, ParagraphNode],
+  };
 
-    return (
-        <LexicalComposer initialConfig={initialConfig} key={composerKey}>
-            {/* Use the custom fallback component for the boundary */}
-            <LexicalErrorBoundary fallback={LexicalErrorBoundaryComponent}>
-                {/* Render the core editor logic component */}
-                <LexicalEditorCore
-                    tabId={tabId}
-                    paragraphs={paragraphs}
-                />
-            </LexicalErrorBoundary>
-        </LexicalComposer>
-    );
+  return (
+    <LexicalComposer initialConfig={initialConfig} key={composerKey}>
+      <LexicalErrorBoundary fallback={LexicalErrorBoundaryComponent}>
+        <LexicalEditorCore
+          tabId={tabId}
+          paragraphs={paragraphs}
+          isActive={isActive} /* <-- pass down */
+        />
+      </LexicalErrorBoundary>
+    </LexicalComposer>
+  );
 }
 
 LexicalDescriptionDisplay.propTypes = {
-    tabId: PropTypes.string,
-    paragraphs: PropTypes.arrayOf(
-        PropTypes.shape({
-            id: PropTypes.string.isRequired,
-            text: PropTypes.string,
-        })
-    ).isRequired,
+  tabId: PropTypes.string,
+  paragraphs: PropTypes.array.isRequired,
+  isActive: PropTypes.bool, // NEW
 };
 
 LexicalDescriptionDisplay.defaultProps = {
-    tabId: null,
-    paragraphs: [],
+  tabId: null,
+  isActive: false,
 };
