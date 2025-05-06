@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { createPortal } from 'react-dom';
 import { Highlighter, Trash2, Palette } from 'lucide-react';
 import clsx from 'clsx';
-import { colorToBgClass } from '../utils/highlightColorMap';
+import { colorToBgClass } from '../../highlights/utils/highlightColorMap';
 
 export default function HighlightToolbar({
   position,

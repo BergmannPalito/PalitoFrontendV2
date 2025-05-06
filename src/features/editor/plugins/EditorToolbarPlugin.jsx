@@ -4,10 +4,10 @@ import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 
-import { useToolbar } from '../../patents/hooks/useToolbar';
-import { useHighlightHandler } from '../hooks/useHighlightHandler';
-import HighlightToolbar from '../components/HighlightToolbar';
-import { COLOR_LIST } from '../utils/highlightColorMap';
+import { useToolbar } from '../hooks/useToolbar';
+import { useHighlightHandler } from '../../highlights/hooks/useHighlightHandler';
+import HighlightToolbar from '../components/EditorToolbar';
+import { COLOR_LIST } from '../../highlights/utils/highlightColorMap';
 
 export default function HighlightToolbarPlugin({ editorInnerDivRef, tabId }) {
   const [editor] = useLexicalComposerContext();

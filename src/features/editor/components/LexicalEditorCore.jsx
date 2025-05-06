@@ -9,7 +9,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import InitialContentPlugin from '../plugins/InitialContentPlugin';
 import ApplyInitialHighlightsPlugin from '../../highlights/plugins/ApplyInitialHighlightsPlugin';
-import HighlightToolbarPlugin from '../../highlights/plugins/HighlightToolbarPlugin';
+import HighlightToolbarPlugin from '../plugins/EditorToolbarPlugin';
 import HighlightOverlayPlugin from '../../highlights/plugins/HighlightOverlayPlugin';
 
 function EditorErrorFallback({ onError, error }) {
