@@ -1,7 +1,7 @@
 // src/features/patents/components/Layout/DescriptionPane.jsx
 import PropTypes from 'prop-types';
 import clsx from 'clsx';
-import LexicalDescriptionDisplay from './LexicalDescriptionDisplay';
+import LexicalDescriptionDisplay from '../../../editor/components/LexicalEditorWrapper';
 
 export default function DescriptionPane({
   tabId,

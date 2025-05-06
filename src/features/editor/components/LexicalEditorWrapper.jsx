@@ -6,7 +6,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { TextNode, ParagraphNode } from 'lexical';
 
 import LexicalEditorCore from './LexicalEditorCore';
-import { editorTheme } from '../../config/lexicalConfig';
+import { editorTheme } from '../config/lexicalEditorConfig';
 
 function LexicalErrorBoundaryComponent(error) {
   // eslint-disable-next-line no-console

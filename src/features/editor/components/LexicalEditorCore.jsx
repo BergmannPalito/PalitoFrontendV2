@@ -7,10 +7,10 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
-import InitialContentPlugin from './InitialContentPlugin';
-import ApplyInitialHighlightsPlugin from './plugins/ApplyInitialHighlightsPlugin';
-import HighlightToolbarPlugin from './plugins/HighlightToolbarPlugin';
-import HighlightOverlayPlugin from './plugins/HighlightOverlayPlugin';
+import InitialContentPlugin from '../plugins/InitialContentPlugin';
+import ApplyInitialHighlightsPlugin from '../../patents/components/Layout/plugins/ApplyInitialHighlightsPlugin';
+import HighlightToolbarPlugin from '../../patents/components/Layout/plugins/HighlightToolbarPlugin';
+import HighlightOverlayPlugin from '../../patents/components/Layout/plugins/HighlightOverlayPlugin';
 
 function EditorErrorFallback({ onError, error }) {
   onError(error);
