@@ -16,7 +16,7 @@ import clsx from 'clsx';
 
 import { HighlightProvider } from '../context/HighlightContext';      // ← FIRST
 import { PatentWorkspaceProvider, usePatentWorkspace } from '../context/PatentWorkspaceContext';
-import { CommentsProvider } from '../context/CommentsContext';
+import { CommentsProvider } from '@/features/comments/context/CommentsContext';
 
 import Sidebar from '../components/Sidebar/Sidebar';
 import TabWorkspace from '../components/TabWorkspace/TabWorkspace';

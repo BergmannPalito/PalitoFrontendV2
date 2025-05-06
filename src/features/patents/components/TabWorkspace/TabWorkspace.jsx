@@ -23,7 +23,7 @@
   import { usePatentWorkspace } from '../../context/PatentWorkspaceContext';
   
   import DescriptionPane from '../Layout/DescriptionPane';
-  import CommentsPane from '../Layout/CommentsPane';
+  import CommentsPane from '@/features/comments/components/CommentsPane';
   import ClaimsPane from '../Layout/ClaimsPane';
   
   import { useMediaQuery } from '@/hooks/useMediaQuery';

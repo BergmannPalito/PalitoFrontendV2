@@ -1,6 +1,6 @@
 // src/features/patents/components/Layout/CommentsPane.jsx
 import CommentCard from './CommentCard';
-import { useComments } from '@/features/patents/hooks/useComments';
+import { useComments } from '@/features/comments/hooks/useComments';
 
 export default function CommentsPane() {
   const { comments, isLoading, error } = useComments();

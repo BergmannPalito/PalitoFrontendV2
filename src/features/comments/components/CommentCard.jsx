@@ -6,7 +6,7 @@ import { Menu, Transition } from '@headlessui/react';
 import { MoreVertical, ChevronUp, ChevronDown, Edit, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import { useComments } from '@/features/patents/hooks/useComments';
+import { useComments } from '@/features/comments/hooks/useComments';
 
 // Helper function for relative time
 const formatRelativeTime = (date) => {

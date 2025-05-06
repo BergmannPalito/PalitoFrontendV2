@@ -64,6 +64,42 @@
             : idx;
         return { ...state, openTabs, activeTabIndex: newActive };
       }
+      
+      case 'RENAME_TAB': {
+        const { id, newName } = action;
+
+        const openTabs = state.openTabs.map((tab) =>
+          tab.id === id
+            ? {
+                ...tab,
+                name: newName,
+                nameChangedByUser: true, // remember: user overrode default
+              }
+            : tab,
+        );
+
+        return { ...state, openTabs };
+      }
+        
+      case 'REORDER_TABS': {
+        // This version calculates and returns the updated index
+        const { from, to } = action;
+        if ( from < 0 || from >= state.openTabs.length || to < 0 || to >= state.openTabs.length || from === to ) {
+            return state;
+        }
+        const currentActiveId = state.openTabs[state.activeTabIndex]?.id;
+        const newTabs = [...state.openTabs];
+        const [moved] = newTabs.splice(from, 1);
+        newTabs.splice(to, 0, moved);
+        let newActiveIndex = 0;
+        if (currentActiveId && newTabs.length > 0) {
+            const foundIndex = newTabs.findIndex((t) => t.id === currentActiveId);
+            newActiveIndex = foundIndex !== -1 ? foundIndex : 0;
+        }
+        newActiveIndex = Math.max(0, Math.min(newActiveIndex, newTabs.length > 0 ? newTabs.length - 1 : 0));
+        return { ...state, openTabs: newTabs, activeTabIndex: newActiveIndex };
+    }
+      
   
       /* –– search finished –– */
       case 'COMPLETE_SEARCH': {
@@ -100,6 +136,8 @@
             { id: action.id, name: action.name, patents: [] },
           ],
         };
+      
+      
   
       case 'RENAME_FOLDER':
         return {
@@ -172,6 +210,11 @@
       },
       [removeTabHighlights],
     );
+
+    const renameTab = useCallback(
+      (id, n) => dispatch({ type: 'RENAME_TAB', id, newName: n }),
+      [],
+    );
   
     const completeSearch = useCallback(
       (searchTabId, patentData) =>
@@ -179,6 +222,53 @@
           type: 'COMPLETE_SEARCH',
           payload: { searchTabId, patentData },
         }),
+      [],
+    );
+
+    const addFolder = useCallback(
+      (id, name) =>
+        dispatch({
+          type: 'ADD_FOLDER',
+          id,
+          name,
+        }),
+      [],
+    );
+
+    const addPatentToFolder = useCallback(
+      (folderId, patent) =>
+        dispatch({
+          type: 'ADD_PATENT_TO_FOLDER',
+          folderId,
+          patent,
+        }),
+      [],
+    );
+
+    const reorderTabs = useCallback((f, t) => dispatch({ type: 'REORDER_TABS', from: f, to: t }), []);
+
+    const renameFolder = useCallback(
+      (id, newName) =>
+        dispatch({
+          type: 'RENAME_FOLDER',
+          id,
+          newName,
+        }),
+      [],
+    );
+
+    const removePatentFromFolder = useCallback(
+      (folderId, patentId) =>
+        dispatch({
+          type: 'REMOVE_PATENT_FROM_FOLDER',
+          folderId,
+          patentId,
+        }),
+      [],
+    );
+
+    const deleteFolder = useCallback(
+      (folderId) => dispatch({ type: 'DELETE_FOLDER', id: folderId }),
       [],
     );
   
@@ -189,7 +279,14 @@
       setActiveTab,
       addTab,
       closeTab,
+      renameTab,
+      addFolder,
+      addPatentToFolder,
       completeSearch,
+      reorderTabs,
+      renameFolder,
+      deleteFolder,
+      removePatentFromFolder,
       makeNewSearchTab, // called by TabWorkspace when the user hits "Ctrl‑T"
     };
   
