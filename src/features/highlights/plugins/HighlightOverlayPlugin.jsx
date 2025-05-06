@@ -5,9 +5,9 @@ import PropTypes from 'prop-types';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { useDebouncedCallback } from 'use-debounce';
 
-import { useHighlightContext } from '../../../context/HighlightContext';
-import { getRectsForSavedRange } from '../../../utils/highlightOverlayHelpers';
-import { colorToBgClass } from '../../../utils/highlightColorMap';
+import { useHighlightContext } from '../context/HighlightContext';
+import { getRectsForSavedRange } from '../utils/highlightOverlayHelpers';
+import { colorToBgClass } from '../utils/highlightColorMap';
 
 /**
  * One overlay instance lives as long as the Lexical editor for that tab.

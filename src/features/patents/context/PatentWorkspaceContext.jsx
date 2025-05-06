@@ -10,7 +10,7 @@
   } from 'react';
   import PropTypes from 'prop-types';
   import { nanoid } from 'nanoid';
-  import { useHighlightContext } from './HighlightContext';
+  import { useHighlightContext } from '../../highlights/context/HighlightContext';
   
   /* ── helper to spawn a search‑wizard tab ──────────────────────── */
   export const makeNewSearchTab = () => ({

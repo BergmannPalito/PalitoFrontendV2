@@ -8,9 +8,9 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 
 import InitialContentPlugin from '../plugins/InitialContentPlugin';
-import ApplyInitialHighlightsPlugin from '../../patents/components/Layout/plugins/ApplyInitialHighlightsPlugin';
-import HighlightToolbarPlugin from '../../patents/components/Layout/plugins/HighlightToolbarPlugin';
-import HighlightOverlayPlugin from '../../patents/components/Layout/plugins/HighlightOverlayPlugin';
+import ApplyInitialHighlightsPlugin from '../../highlights/plugins/ApplyInitialHighlightsPlugin';
+import HighlightToolbarPlugin from '../../highlights/plugins/HighlightToolbarPlugin';
+import HighlightOverlayPlugin from '../../highlights/plugins/HighlightOverlayPlugin';
 
 function EditorErrorFallback({ onError, error }) {
   onError(error);

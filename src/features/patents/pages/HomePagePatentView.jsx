@@ -14,7 +14,7 @@ import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { MdDragIndicator } from 'react-icons/md';
 import clsx from 'clsx';
 
-import { HighlightProvider } from '../context/HighlightContext';      // ← FIRST
+import { HighlightProvider } from '../../highlights/context/HighlightContext';      // ← FIRST
 import { PatentWorkspaceProvider, usePatentWorkspace } from '../context/PatentWorkspaceContext';
 import { CommentsProvider } from '@/features/comments/context/CommentsContext';
 

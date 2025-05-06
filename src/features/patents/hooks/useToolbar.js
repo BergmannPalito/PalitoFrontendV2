@@ -9,8 +9,8 @@ import {
 } from 'lexical';
 import { mergeRegister } from '@lexical/utils';
 
-import { useHighlightContext } from '../context/HighlightContext';
-import { serializeRange, rangesIntersect } from '../utils/highlightUtils';
+import { useHighlightContext } from '../../highlights/context/HighlightContext';
+import { serializeRange, rangesIntersect } from '../../highlights/utils/highlightUtils';
 
 export function useToolbar(editorInnerDivRef, tabId) {
   const [editor] = useLexicalComposerContext();

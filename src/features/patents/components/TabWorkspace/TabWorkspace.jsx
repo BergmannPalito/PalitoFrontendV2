@@ -102,10 +102,7 @@
     };
   
     const isSearchTab = currentPatent?.isSearchCompleted === false;
-  
-    /* ═══════════════════════════════════════════════════════════ */
-    /*                              UI                              */
-    /* ═══════════════════════════════════════════════════════════ */
+
     return (
       <Tab.Group
         key={tabGroupKey}
@@ -114,7 +111,6 @@
         as="div"
         className="flex h-full w-full flex-col overflow-hidden bg-gray-50"
       >
-        {/* ───────── TAB BAR ───────── */}
         <div className="relative flex h-10 shrink-0 items-center border-b bg-white px-1 shadow-sm">
           <div
             ref={scrollContainerRef}
@@ -157,7 +153,6 @@
   
         {/* ───────── PANES ───────── */}
         <div className="flex flex-1 overflow-hidden bg-white">
-          {/* 1️⃣ SEARCH TAB UI */}
           {isSearchTab && (
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">
@@ -223,7 +218,6 @@
             </div>
           )}
   
-          {/* 2️⃣ ALL COMPLETED EDITORS (kept mounted) */}
           {tabs
             .filter((t) => t.isSearchCompleted)
             .map((t) => {
@@ -241,7 +235,6 @@
               );
             })}
   
-          {/* 3️⃣ SIDE PANES */}
           {currentPatent && !isSearchTab && (
             <>
               {showCommentsPane && <CommentsPane />}
@@ -253,7 +246,6 @@
             </>
           )}
   
-          {/* 4️⃣ PLACEHOLDER */}
           {!currentPatent && (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-10 text-center">
               {tabs.length === 0 ? (
@@ -297,9 +289,6 @@
   
   TabGroupWrapper.defaultProps = { currentPatent: null };
   
-  /* ═══════════════════════════════════════════════════════════ */
-  /*                        MAIN COMPONENT                       */
-  /* ═══════════════════════════════════════════════════════════ */
   export default function TabWorkspace({ isDragging }) {
     const {
       openTabs = [],
