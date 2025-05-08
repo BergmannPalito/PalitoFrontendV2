@@ -44,5 +44,6 @@ export const COLOR_LIST = [
     stone: 'bg-stone-300/40',
     gray: 'bg-gray-300/40',
     slate: 'bg-slate-300/40',
+    commentAnchorBlue: 'bg-yellow-400/60'
   };
   

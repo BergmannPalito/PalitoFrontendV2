@@ -6,15 +6,16 @@ import LexicalDescriptionDisplay from '../../../editor/components/LexicalEditorW
 export default function DescriptionPane({
   tabId,
   paragraphs,
-  commentsVisible,
-  /** NEW: whether this pane is currently the one on screen */
+  commentsVisible, // This prop influences the width of DescriptionPane
   isActive,
+  showCommentsPaneForThisEditor, // NEW: To control rendering of portalled sidebar
 }) {
   return (
     <section
       className={clsx(
         'h-full overflow-y-auto relative transition-all duration-300 ease-in-out',
-        commentsVisible ? 'basis-1/2' : 'basis-2/3',
+        // Width of DescriptionPane adjusts based on whether comments sidebar is globally visible
+        commentsVisible ? 'basis-1/2' : 'basis-2/3', 
         'border-r border-gray-200',
       )}
       data-testid="description-pane-scroll-container"
@@ -22,7 +23,8 @@ export default function DescriptionPane({
       <LexicalDescriptionDisplay
         tabId={tabId}
         paragraphs={paragraphs}
-        isActive={isActive} /* <-- pass down */
+        isActive={isActive}
+        showCommentsPaneForThisEditor={showCommentsPaneForThisEditor} // Pass down
       />
     </section>
   );
@@ -37,10 +39,12 @@ DescriptionPane.propTypes = {
     }),
   ).isRequired,
   commentsVisible: PropTypes.bool.isRequired,
-  isActive: PropTypes.bool, // NEW
+  isActive: PropTypes.bool,
+  showCommentsPaneForThisEditor: PropTypes.bool, // NEW
 };
 
 DescriptionPane.defaultProps = {
   tabId: null,
   isActive: false,
+  showCommentsPaneForThisEditor: false, // Default to false
 };

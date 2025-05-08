@@ -17,22 +17,22 @@
   } from '@dnd-kit/sortable';
   import { MdAdd, MdSearch } from 'react-icons/md';
   import clsx from 'clsx';
-  
+
   import SortableTab from './SortableTab';
   import RenameTabModal from './RenameTabModal';
   import { usePatentWorkspace } from '../../context/PatentWorkspaceContext';
-  
+
   import DescriptionPane from '../Layout/DescriptionPane';
-  import CommentsPane from '@/features/comments/components/CommentsPane';
+  // CommentsPane import is no longer directly used by TabGroupWrapper for rendering the sidebar itself
   import ClaimsPane from '../Layout/ClaimsPane';
-  
+
   import { useMediaQuery } from '@/hooks/useMediaQuery';
   import { mockSearch } from '@/features/patents/services/mockSearch';
-  
+
   const COMMENTS_VISIBLE_STORAGE_KEY = 'palito_commentsVisible';
-  
+
   /* ═══════════════════════════════════════════════════════════ */
-  /*                       TAB‑GROUP WRAPPER                     */
+  /* TAB‑GROUP WRAPPER                     */
   /* ═══════════════════════════════════════════════════════════ */
   function TabGroupWrapper({
     tabs,
@@ -41,7 +41,7 @@
     onRenameRequest,
     onCloseRequest,
     onAddRequest,
-    showCommentsPane,
+    showCommentsPane, // Global state: should the comment pane area be visible?
     currentPatent,
     toggleCommentsPane,
     isDragging,
@@ -53,8 +53,8 @@
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearching, setIsSearching] = useState(false);
     const [searchError, setSearchError] = useState(null);
-  
-    /* ── detect overflow in tab list ───────────────────────── */
+
+    // Effect for overflow detection (no changes needed)
     useEffect(() => {
       const el = scrollContainerRef.current;
       if (!el) return;
@@ -64,17 +64,17 @@
       ro.observe(el);
       return () => ro.disconnect();
     }, [tabs.length, scrollContainerRef]);
-  
-    /* ── reset search UI on tab switch ─────────────────────── */
+
+    // Effect to reset search UI on tab switch (no changes needed)
     useEffect(() => {
       setSearchQuery('');
       setIsSearching(false);
       setSearchError(null);
     }, [currentPatent?.id]);
-  
+
     const selectedIndex =
       currentIndex >= 0 && currentIndex < tabs.length ? currentIndex : 0;
-  
+
     const AddButton = () => (
       <button
         type="button"
@@ -85,8 +85,7 @@
         <MdAdd size={20} />
       </button>
     );
-  
-    /* ── handle patent search submission ───────────────────── */
+
     const handleSearchSubmit = async (e) => {
       e.preventDefault();
       if (!searchQuery.trim() || !currentPatent?.id || isSearching) return;
@@ -100,7 +99,7 @@
         setIsSearching(false);
       }
     };
-  
+
     const isSearchTab = currentPatent?.isSearchCompleted === false;
 
     return (
@@ -111,6 +110,7 @@
         as="div"
         className="flex h-full w-full flex-col overflow-hidden bg-gray-50"
       >
+        {/* Tab List Header */}
         <div className="relative flex h-10 shrink-0 items-center border-b bg-white px-1 shadow-sm">
           <div
             ref={scrollContainerRef}
@@ -150,124 +150,94 @@
             </div>
           )}
         </div>
-  
-        {/* ───────── PANES ───────── */}
+
+        {/* PANES AREA - Main Flex Container */}
         <div className="flex flex-1 overflow-hidden bg-white">
-          {isSearchTab && (
+
+          {/* Case 1: Active tab is a Search Tab */}
+          {isSearchTab && currentPatent && (
+            // Search UI takes the full space when active
             <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gray-50">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                Search Patent
-              </h2>
-              <form
-                onSubmit={handleSearchSubmit}
-                className="w-full max-w-md space-y-4"
-              >
-                <div className="flex items-center border border-gray-300 rounded-md shadow-sm bg-white px-3 py-2 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:border-emerald-500">
-                  <MdSearch className="text-gray-400 mr-2" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Enter publication number (e.g. EP1626661B1)"
-                    className="flex-1 text-sm outline-none bg-transparent"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    disabled={isSearching}
-                    autoFocus
-                  />
-                </div>
-                {searchError && (
-                  <p className="text-sm text-red-600 text-center">{searchError}</p>
-                )}
-                <button
-                  type="submit"
-                  disabled={isSearching || !searchQuery.trim()}
-                  className="w-full flex justify-center items-center rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {isSearching ? (
-                    <>
-                      <svg
-                        className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        />
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        />
-                      </svg>
-                      Searching…
-                    </>
-                  ) : (
-                    'Search'
-                  )}
-                </button>
+               <h2 className="text-xl font-semibold text-gray-700 mb-4">Search Patent</h2>
+               <form onSubmit={handleSearchSubmit} className="w-full max-w-md space-y-4">
+                  {/* Search Input */}
+                  <div className="flex items-center border border-gray-300 rounded-md shadow-sm bg-white px-3 py-2 focus-within:ring-1 focus-within:ring-emerald-500 focus-within:border-emerald-500">
+                    <MdSearch className="text-gray-400 mr-2" size={18} />
+                    <input type="text" placeholder="Enter publication number (e.g. EP1626661B1)" className="flex-1 text-sm outline-none bg-transparent" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} disabled={isSearching} autoFocus />
+                  </div>
+                  {/* Search Error */}
+                  {searchError && <p className="text-sm text-red-600 text-center">{searchError}</p>}
+                  {/* Search Button */}
+                  <button type="submit" disabled={isSearching || !searchQuery.trim()} className="w-full flex justify-center items-center rounded-md bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                    {isSearching ? 'Searching…' : 'Search'}
+                  </button>
               </form>
-              <p className="text-xs text-gray-500 mt-4">
-                Example:{' '}
-                <code className="bg-gray-200 px-1 rounded">EP1626661B1</code>
-              </p>
+              <p className="text-xs text-gray-500 mt-4">Example: <code className="bg-gray-200 px-1 rounded">EP1626661B1</code></p>
             </div>
           )}
-  
-          {tabs
-            .filter((t) => t.isSearchCompleted)
-            .map((t) => {
-              const active = t.id === currentPatent?.id && !isSearchTab;
-  
-              return (
-                <div key={t.id} className={active ? 'contents' : 'hidden'}>
-                  <DescriptionPane
-                    tabId={t.id}
-                    paragraphs={t.paragraphs || []}
-                    commentsVisible={active && showCommentsPane}
-                    isActive={active} /* ← tells overlay to recalc immediately */
-                  />
+
+          {/* Case 2: Active tab is a regular Patent Tab */}
+          {!isSearchTab && currentPatent && (
+            <> {/* Use a fragment to return multiple adjacent elements */}
+              {/* Pane 1: Description Pane */}
+              {/* Render Description Pane directly using currentPatent data */}
+              <DescriptionPane
+                key={currentPatent.id} // Key helps React differentiate between tabs
+                tabId={currentPatent.id}
+                paragraphs={currentPatent.paragraphs || []}
+                commentsVisible={showCommentsPane} // Affects DescriptionPane's width
+                isActive={true} // It's the active one if we're in this block
+                showCommentsPaneForThisEditor={showCommentsPane} // Signal to LexicalEditorCore
+              />
+
+              {/* Pane 2: Comments Sidebar Portal Target */}
+              {/* This div holds the space and gets content via Portal */}
+              {/* Render this placeholder ONLY if comments should be visible */}
+              {showCommentsPane && (
+                <div
+                  id="comment-sidebar-portal-target"
+                  className="w-80 h-full border-l border-r border-gray-200 bg-slate-100 shrink-0 overflow-y-auto" // Added right border
+                  aria-label="Comments sidebar"
+                >
+                  {/* Content injected by portal */}
                 </div>
-              );
-            })}
-  
-          {currentPatent && !isSearchTab && (
-            <>
-              {showCommentsPane && <CommentsPane />}
+              )}
+
+              {/* Pane 3: Claims Pane */}
               <ClaimsPane
-                patent={currentPatent}
-                commentsVisible={showCommentsPane}
-                toggleComments={toggleCommentsPane}
+                  patent={currentPatent}
+                  commentsVisible={showCommentsPane} // Affects ClaimsPane's width
+                  toggleComments={toggleCommentsPane}
               />
             </>
           )}
-  
-          {!currentPatent && (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-10 text-center">
-              {tabs.length === 0 ? (
-                <>
-                  <p className="text-lg mb-4">No tabs open.</p>
-                  <button
-                    onClick={onAddRequest}
-                    className="flex items-center gap-2 rounded bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-                  >
-                    <MdAdd size={18} /> Add New Tab
-                  </button>
-                </>
-              ) : (
-                <p>Select a tab to view its content.</p>
-              )}
-            </div>
+
+          {/* Case 3: No active/valid tab (and not a search tab) */}
+          {!currentPatent && !isSearchTab && (
+             <div className="flex-1 flex flex-col items-center justify-center text-gray-500 p-10 text-center">
+               {tabs.length === 0 ? (
+                 <>
+                   <p className="text-lg mb-4">No tabs open.</p>
+                   <button
+                     onClick={onAddRequest}
+                     className="flex items-center gap-2 rounded bg-emerald-600 px-4 py-2 font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                   >
+                     <MdAdd size={18} /> Add New Tab
+                   </button>
+                 </>
+               ) : (
+                 <p className="text-lg">Select a tab to view its content.</p>
+               )}
+             </div>
           )}
+
         </div>
+        {/* End PANES AREA */}
       </Tab.Group>
     );
   }
-  
+
+  // PropTypes for TabGroupWrapper (no changes needed)
   TabGroupWrapper.propTypes = {
     tabs: PropTypes.array.isRequired,
     currentIndex: PropTypes.number.isRequired,
@@ -286,9 +256,10 @@
     ]),
     onCompleteSearchRequest: PropTypes.func.isRequired,
   };
-  
   TabGroupWrapper.defaultProps = { currentPatent: null };
-  
+
+  // TabWorkspace Component (export default function TabWorkspace...)
+  // No changes needed here from the previous version provided in the prompt
   export default function TabWorkspace({ isDragging }) {
     const {
       openTabs = [],
@@ -297,8 +268,8 @@
       addTab,
       closeTab,
       completeSearch,
-      makeNewSearchTab = (id) => ({
-        id,
+      makeNewSearchTab = (idPrefix = 'new') => ({
+        id: `${idPrefix}-${reactIdPart}-${Date.now()}`,
         name: 'New Search',
         description: '<p>Enter search criteria…</p>',
         claims: '<p>N/A</p>',
@@ -310,8 +281,7 @@
         nameChangedByUser: false,
       }),
     } = usePatentWorkspace() || {};
-  
-    /* ── local UI state ───────────────────────────────────── */
+
     const [renameInfo, setRenameInfo] = useState({
       open: false,
       id: null,
@@ -320,85 +290,83 @@
     const [commentsVisible, setCommentsVisible] = useState(() => {
       try {
         const v = localStorage.getItem(COMMENTS_VISIBLE_STORAGE_KEY);
-        return v !== null ? JSON.parse(v) : true;
+        const defaultVisibility = typeof window !== 'undefined' ? window.matchMedia('(min-width: 1024px)').matches : true;
+        return v !== null ? JSON.parse(v) : defaultVisibility;
       } catch {
         return true;
       }
     });
-  
-    /* ── helpers ─────────────────────────────────────────── */
+
     const isLargeScreen = useMediaQuery('(min-width: 1024px)');
     const toggleComments = useCallback(() => {
       if (!isLargeScreen) return;
       setCommentsVisible((v) => !v);
     }, [isLargeScreen]);
-  
-    const reactId = useId();
+
+    const reactIdPart = useId();
     const scrollRef = useRef(null);
-  
-    /* keep selected tab button in view */
+
+    // Effect to scroll active tab into view
     useEffect(() => {
       const el = scrollRef.current;
-      el
-        ?.querySelector('button[role="tab"][data-headlessui-state="selected"]')
-        ?.scrollIntoView({ block: 'nearest', inline: 'center' });
-    }, [activeTabIndex]);
-  
-    /* collapse comments on <lg */
+      const selectedTabButton = el?.querySelector('button[role="tab"][data-headlessui-state="selected"]');
+      if (selectedTabButton) {
+        selectedTabButton.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+      }
+    }, [activeTabIndex, openTabs]);
+
+    // Effect to manage comments visibility based on screen size and persist
     useEffect(() => {
-      if (!isLargeScreen && commentsVisible) setCommentsVisible(false);
-    }, [isLargeScreen, commentsVisible]);
-  
-    /* persist comments visibility */
-    useEffect(() => {
+      let visibility = commentsVisible;
+      if (!isLargeScreen && commentsVisible) {
+        visibility = false;
+        setCommentsVisible(false);
+      }
       try {
         localStorage.setItem(
           COMMENTS_VISIBLE_STORAGE_KEY,
-          JSON.stringify(commentsVisible),
+          JSON.stringify(visibility),
         );
-      } catch {
-        /* ignore */
-      }
-    }, [commentsVisible]);
-  
-    /* keyboard shortcuts */
+      } catch {/* ignore localStorage errors */}
+    }, [isLargeScreen, commentsVisible]);
+
+    // Effect for keyboard shortcuts
     useEffect(() => {
       const handler = (e) => {
-        if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
           e.preventDefault();
           if (isLargeScreen) toggleComments();
         }
-        if ((e.ctrlKey || e.metaKey) && e.key === 'w') {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'W' || e.key === 'w')) {
           e.preventDefault();
-          const id = openTabs[activeTabIndex]?.id;
-          if (id) closeTab(id);
+          const idToClose = openTabs[activeTabIndex]?.id;
+          if (idToClose) closeTab(idToClose);
         }
-        if ((e.ctrlKey || e.metaKey) && e.key === 't') {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'T' || e.key === 't')) {
           e.preventDefault();
-          addTab(makeNewSearchTab(`new-${reactId}-${Date.now()}`));
+          addTab(makeNewSearchTab(`new-${reactIdPart}`));
         }
       };
       window.addEventListener('keydown', handler);
       return () => window.removeEventListener('keydown', handler);
     }, [
-      openTabs,
-      activeTabIndex,
-      closeTab,
-      addTab,
-      makeNewSearchTab,
-      reactId,
-      isLargeScreen,
-      toggleComments,
+      openTabs, activeTabIndex, closeTab, addTab, makeNewSearchTab,
+      reactIdPart, isLargeScreen, toggleComments,
     ]);
-  
-    /* derived info */
+
     const activePatent = openTabs[activeTabIndex] ?? null;
     const tabOrderKey = useMemo(
       () => openTabs.map((t) => t.id).join('-'),
       [openTabs],
     );
-  
-    /* render */
+
+    const handleAddRequest = useCallback(() => {
+        addTab(makeNewSearchTab(`new-${reactIdPart}`));
+    }, [addTab, makeNewSearchTab, reactIdPart]);
+
+    // Determine if the comments pane area should be *potentially* visible
+    const shouldShowCommentsArea = commentsVisible && isLargeScreen;
+
     return (
       <>
         <TabGroupWrapper
@@ -409,10 +377,9 @@
             setRenameInfo({ open: true, id, name })
           }
           onCloseRequest={closeTab}
-          onAddRequest={() =>
-            addTab(makeNewSearchTab(`new-${reactId}-${Date.now()}`))
-          }
-          showCommentsPane={commentsVisible && isLargeScreen}
+          onAddRequest={handleAddRequest}
+          // Pass the calculated boolean for showing the comments area
+          showCommentsPane={shouldShowCommentsArea}
           currentPatent={activePatent}
           toggleCommentsPane={toggleComments}
           isDragging={isDragging}
@@ -420,7 +387,7 @@
           scrollContainerRef={scrollRef}
           onCompleteSearchRequest={completeSearch}
         />
-  
+
         {renameInfo.open && (
           <RenameTabModal
             tabId={renameInfo.id}
@@ -434,5 +401,5 @@
       </>
     );
   }
-  
-  TabWorkspace.propTypes = { isDragging: PropTypes.bool.isRequired };  
+
+  TabWorkspace.propTypes = { isDragging: PropTypes.bool.isRequired };

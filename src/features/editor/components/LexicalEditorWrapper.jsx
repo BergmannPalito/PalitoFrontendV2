@@ -1,4 +1,5 @@
-// src/features/patents/components/Layout/LexicalDescriptionDisplay.jsx
+// src/features/editor/components/LexicalEditorWrapper.jsx 
+// (If you renamed it from LexicalDescriptionDisplay, adjust filename)
 import React from 'react';
 import PropTypes from 'prop-types';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
@@ -9,15 +10,15 @@ import LexicalEditorCore from './LexicalEditorCore';
 import { editorTheme } from '../config/lexicalEditorConfig';
 
 function LexicalErrorBoundaryComponent(error) {
-  // eslint-disable-next-line no-console
-  console.error('[LexicalDescriptionDisplay ErrorBoundary]', error);
+  console.error('[LexicalWrapper ErrorBoundary]', error);
   return <div>Lexical Error! Check console.</div>;
 }
 
-export default function LexicalDescriptionDisplay({
+export default function LexicalEditorWrapper({ // Renamed from LexicalDescriptionDisplay if that was the case
   tabId,
   paragraphs,
-  isActive, // NEW
+  isActive,
+  showCommentsPaneForThisEditor, // NEW prop
 }) {
   const composerKey = `lexical-display-${tabId || 'no-tab'}`;
 
@@ -25,12 +26,11 @@ export default function LexicalDescriptionDisplay({
     namespace: `PatentDescriptionEditor_${tabId || 'no_tab'}`,
     theme: editorTheme,
     onError: (error) => {
-      // eslint-disable-next-line no-console
       console.error('Lexical initialConfig onError:', error);
     },
     editable: false,
     editorState: null,
-    nodes: [TextNode, ParagraphNode],
+    nodes: [TextNode, ParagraphNode], // Add any other custom nodes you use
   };
 
   return (
@@ -39,20 +39,23 @@ export default function LexicalDescriptionDisplay({
         <LexicalEditorCore
           tabId={tabId}
           paragraphs={paragraphs}
-          isActive={isActive} /* <-- pass down */
+          isActive={isActive}
+          showCommentsPaneForThisEditor={showCommentsPaneForThisEditor} // Pass down
         />
       </LexicalErrorBoundary>
     </LexicalComposer>
   );
 }
 
-LexicalDescriptionDisplay.propTypes = {
+LexicalEditorWrapper.propTypes = {
   tabId: PropTypes.string,
   paragraphs: PropTypes.array.isRequired,
-  isActive: PropTypes.bool, // NEW
+  isActive: PropTypes.bool,
+  showCommentsPaneForThisEditor: PropTypes.bool, // NEW
 };
 
-LexicalDescriptionDisplay.defaultProps = {
+LexicalEditorWrapper.defaultProps = {
   tabId: null,
   isActive: false,
+  showCommentsPaneForThisEditor: false,
 };
