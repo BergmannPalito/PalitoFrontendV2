@@ -42,9 +42,6 @@ export default function HighlightToolbar({
   const pickColor = (c) => {
     onColorChange(c);
     setShowPalette(false);
-    if (isTextSelected && editor) {
-      editor.update(onHighlight);
-    }
   };
 
   return createPortal(
