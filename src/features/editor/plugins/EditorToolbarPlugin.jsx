@@ -1,6 +1,6 @@
 // src/features/editor/plugins/EditorToolbarPlugin.jsx
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react'; // Added useMemo
 import PropTypes from 'prop-types';
 import { createPortal } from 'react-dom';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
@@ -43,10 +43,7 @@ export default function EditorToolbarPlugin({ editorInnerDivRef, tabId }) {
   const [overlapsAnchor, setOverlapsAnchor] = useState(false);
 
   // Memoized function to compute if the current selection overlaps any comment anchors.
-  // This is extracted for readability and is memoized to prevent unnecessary recalculations
-  // if its dependencies haven't changed.
   const computeOverlap = useCallback(() => {
-    // Requires an active editor, tabId, and a text selection to proceed.
     if (!editor || !tabId || !isTextSelected) {
       return false;
     }
@@ -59,12 +56,11 @@ export default function EditorToolbarPlugin({ editorInnerDivRef, tabId }) {
       if (!domRange.collapsed) {
         const selRects = Array.from(domRange.getClientRects());
 
-        // Access editor state in a read-only transaction to get comment thread ranges
         editor.getEditorState().read(() => {
-          (commentThreads || []) // Ensure commentThreads is an array
-            .filter((t) => t.tabId === tabId && t.textRange) // Process relevant threads with valid text ranges
+          (commentThreads || [])
+            .filter((t) => t.tabId === tabId && t.textRange)
             .forEach((t) => {
-              if (foundOverlap) return; // Early exit if overlap is already found
+              if (foundOverlap) return;
               try {
                 const anchorRects = getRectsForSavedRange(editor, t.textRange);
                 selRects.forEach((sr) => {
@@ -76,7 +72,6 @@ export default function EditorToolbarPlugin({ editorInnerDivRef, tabId }) {
                   });
                 });
               } catch (e) {
-                // Log potential errors during rectangle calculation for a specific thread
                 console.warn(`[EditorToolbarPlugin] Error calculating overlap rects for thread ${t.id}:`, e);
               }
             });
@@ -84,34 +79,23 @@ export default function EditorToolbarPlugin({ editorInnerDivRef, tabId }) {
       }
     }
     return foundOverlap;
-  }, [editor, tabId, commentThreads, isTextSelected]); // Dependencies for the overlap calculation logic
+  }, [editor, tabId, commentThreads, isTextSelected]);
+
+  // Determine the value for overlapsAnchor using useMemo.
+  // This will only recompute if showToolbar, isTextSelected, or the actual computeOverlap function ref changes.
+  const newOverlapStatus = useMemo(() => {
+    if (showToolbar && isTextSelected) {
+      return computeOverlap();
+    }
+    return false;
+  }, [showToolbar, isTextSelected, computeOverlap]);
 
   // Effect to update the `overlapsAnchor` state.
-  // This effect runs when the toolbar's visibility, text selection status,
-  // or the `computeOverlap` function (if its underlying dependencies change) is updated.
+  // This effect now only runs if newOverlapStatus (the boolean value) actually changes.
   useEffect(() => {
-    if (showToolbar && isTextSelected) {
-      const newOverlapStatus = computeOverlap();
-      // Conditional State Guard: Only update state if the calculated value actually differs
-      // from the current state. This is crucial for preventing infinite render loops.
-      // Uses functional update form to ensure it's based on the latest state.
-      setOverlapsAnchor((currentOverlap) => {
-        if (currentOverlap !== newOverlapStatus) {
-          return newOverlapStatus;
-        }
-        return currentOverlap;
-      });
-    } else {
-      // If toolbar is not shown or no text is selected, reset the overlap status.
-      // Conditional State Guard: Only update state if it's not already false.
-      setOverlapsAnchor((currentOverlap) => {
-        if (currentOverlap) {
-          return false;
-        }
-        return currentOverlap;
-      });
-    }
-  }, [showToolbar, isTextSelected, computeOverlap]); // Dependencies that trigger re-evaluation.
+    setOverlapsAnchor(newOverlapStatus);
+  }, [newOverlapStatus]); // Only re-run if the actual boolean overlap status changes.
+
 
   /* ---------- Toolbar Action Callbacks ---------- */
   const onHighlight = useCallback(() => editor.update(handleHighlight), [editor, handleHighlight]);
@@ -127,7 +111,6 @@ export default function EditorToolbarPlugin({ editorInnerDivRef, tabId }) {
 
 
   /* ---------- Render Toolbar ---------- */
-  // Do not render the toolbar if it's not supposed to be shown or if document.body is unavailable (SSR guard)
   if (!showToolbar || !document.body) {
     return null;
   }
@@ -144,25 +127,20 @@ export default function EditorToolbarPlugin({ editorInnerDivRef, tabId }) {
       currentColor={currentColor}
       onColorChange={onColorChange}
       palette={COLOR_LIST}
-      // Disable comment button if selection overlaps an existing anchor
       canComment={!overlapsAnchor}
     />,
     document.body,
   );
 }
 
-// PropTypes definition for the component
 EditorToolbarPlugin.propTypes = {
   editorInnerDivRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.instanceOf(Element) }),
   ]).isRequired,
-  // tabId is used to scope comments and highlights; it's optional but highly recommended.
   tabId: PropTypes.string,
 };
 
-// Default props for the component
-// Ensures tabId defaults to null if not provided, making checks like `if (tabId)` safe.
 EditorToolbarPlugin.defaultProps = {
   tabId: null,
 };

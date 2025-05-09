@@ -59,15 +59,29 @@ import React, {
       case 'SET_ACTIVE_THREAD':
         return { ...state, activeThreadId: action.payload };
   
-      case 'SET_THREAD_POSITION':
-        return {
-          ...state,
-          threads: state.threads.map((t) =>
-            t.id === action.payload.threadId
-              ? { ...t, position: action.payload.position }
-              : t
-          ),
-        };
+      case 'SET_THREAD_POSITION': {
+            let positionChanged = false;
+            const newThreads = state.threads.map((t) => {
+              if (t.id === action.payload.threadId) {
+                // Only update and mark as changed if the position is actually different.
+                // A simple JSON.stringify comparison works for simple position objects.
+                if (JSON.stringify(t.position) !== JSON.stringify(action.payload.position)) {
+                  positionChanged = true;
+                  return { ...t, position: action.payload.position };
+                }
+              }
+              return t;
+            });
+    
+            // If this specific dispatch for this specific thread's position didn't result in a change,
+            // return the original state to prevent unnecessary re-renders and break the loop.
+            if (!positionChanged) return state; 
+            
+            return {
+              ...state,
+              threads: newThreads,
+            };
+          }
   
       case 'ADD_REPLY':
         return {
