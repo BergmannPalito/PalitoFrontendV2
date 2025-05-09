@@ -42,7 +42,7 @@ const CommentCard = ({ item, threadId, isReply = false }) => {
       <div className="text-xs text-gray-500 mb-1">
         <strong>{item.author}</strong> · {formattedTime()}
       </div>
-      <p className="text-sm whitespace-pre-wrap">{item.text}</p>
+      <p className="text-sm whitespace-pre-wrap break-words">{item.text}</p>
       <div className="mt-2 flex space-x-3">
         {!isReply && (
           <button

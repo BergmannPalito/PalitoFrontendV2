@@ -49,7 +49,7 @@ const CommentThread = ({ thread }) => {
   return (
     <div
       id={`comment-thread-${thread.id}`}
-      className={`absolute mb-4 p-3 border rounded-lg shadow-sm ${
+      className={`absolute inset-x-1 mb-4 p-3 border rounded-lg shadow-sm overflow-hidden ${
         activeThreadId === thread.id
           ? 'border-emerald-500 ring-2 ring-emerald-300'
           : 'border-gray-200'

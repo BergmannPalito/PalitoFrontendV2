@@ -40,9 +40,14 @@ const CommentSidebar = ({ tabId }) => {
     let last = -Infinity;
     candidates.forEach(({ id, rawTop }) => {
       const el = document.getElementById(`comment-thread-${id}`);
-      const height = el?.offsetHeight || 80; // Default height if element not found or not rendered yet
+      let height = el?.offsetHeight;
+      if (!height || height === 0) {
+          console.warn(`[CommentSidebar] Could not determine height for thread ${id}. Using minimum fallback.`);
+          height = 50;
+      }
+      
       const top = Math.max(rawTop, last + GAP);
-      last = top + height;
+      last = top + (height || 0);
       dispatch({
         type: 'SET_THREAD_POSITION',
         payload: { threadId: id, position: { top, left: 0 } }, // Assuming left is always 0 for sidebar
